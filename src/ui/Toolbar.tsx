@@ -5,10 +5,9 @@ import {
   exportElevationPng,
   exportLetterPdf,
   exportPlanPng,
-  readProjectFile,
-  saveProjectFile,
 } from "../export/exportPlan";
 import { preloadPhoto } from "../canvas/render";
+import { supportsOpenPicker } from "../export/projectFile";
 
 export function Toolbar() {
   const {
@@ -24,7 +23,12 @@ export function Toolbar() {
     setTool,
     tool,
     newProject,
-    openProject,
+    openFromDisk,
+    openProjectFile,
+    saveProject,
+    saveProjectAs,
+    fileName,
+    dirty,
   } = useStore();
   const photoRef = useRef<HTMLInputElement>(null);
   const openRef = useRef<HTMLInputElement>(null);
@@ -34,6 +38,11 @@ export function Toolbar() {
     const dataUrl = await fileToDataUrl(file);
     const img = await preloadPhoto(dataUrl);
     loadPhoto(dataUrl, img.naturalWidth, img.naturalHeight);
+  }
+
+  async function onOpenClick() {
+    const opened = await openFromDisk();
+    if (!opened && !supportsOpenPicker()) openRef.current?.click();
   }
 
   return (
@@ -60,12 +69,19 @@ export function Toolbar() {
         >
           Sample photo
         </button>
-        <button type="button" onClick={() => openRef.current?.click()}>
+        <button type="button" onClick={() => void onOpenClick()}>
           Open
         </button>
-        <button type="button" onClick={() => saveProjectFile(project)}>
+        <button type="button" onClick={() => void saveProject()} title="Save (Ctrl/Cmd+S)">
           Save
         </button>
+        <button type="button" onClick={() => void saveProjectAs()} title="Save As (Ctrl/Cmd+Shift+S)">
+          Save As
+        </button>
+        <span className="file-chip" title={fileName ?? "Not saved yet"}>
+          {fileName ?? "Unsaved"}
+          {dirty ? " *" : ""}
+        </span>
         <input
           ref={photoRef}
           type="file"
@@ -81,7 +97,8 @@ export function Toolbar() {
           onChange={(e) => {
             const f = e.target.files?.[0];
             if (!f) return;
-            void readProjectFile(f).then(openProject);
+            void openProjectFile(f);
+            e.target.value = "";
           }}
         />
       </div>
@@ -103,6 +120,14 @@ export function Toolbar() {
         </button>
       </div>
       <div className="toolbar-group">
+        <button
+          type="button"
+          className={tool === "select" ? "active" : ""}
+          onClick={() => setTool("select")}
+          title="Click an object to select, then drag or Delete. Esc also returns here."
+        >
+          Select
+        </button>
         <button
           type="button"
           className={tool === "ledger" ? "active" : ""}
@@ -144,7 +169,7 @@ export function Toolbar() {
           Letter PDF
         </button>
       </div>
-      <div className="toolbar-note">Chrome · no account · project file stays in the browser</div>
+      <div className="toolbar-note">Chrome · no account · project file stays on disk you choose</div>
     </header>
   );
 }

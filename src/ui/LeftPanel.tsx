@@ -4,7 +4,6 @@ import { useStore } from "../state/store";
 import { Field, LengthField, NumField, SelectField, TextField, Toggle } from "./fields";
 
 const PLACE_TOOLS: { id: Tool; label: string; hint: string }[] = [
-  { id: "select", label: "Select / drag", hint: "Click a point or object, then drag or Delete." },
   { id: "pan", label: "Pan", hint: "Drag the photo." },
   { id: "scale", label: "Set scale", hint: "Click two points, type a known length." },
   { id: "outline", label: "New deck outline", hint: "Polygon. Double-click or Enter to close. Not the floating deck." },
@@ -34,8 +33,17 @@ export function LeftPanel() {
       <section>
         <h2>Place on plan</h2>
         <p className="hint">
-          Draw these on the canvas. You do not need click-to-convert. The existing floating deck is backdrop only.
+          Draw these on the canvas. After you place something, the app returns to Select so you can click, drag, or Delete.
+          You do not need click-to-convert. The existing floating deck is backdrop only.
         </p>
+        <button
+          type="button"
+          className={`wide ${tool === "select" ? "active" : ""}`}
+          title="Click an object or its bounds to select. Esc also returns here."
+          onClick={() => setTool("select")}
+        >
+          Select — click object, then drag or Delete
+        </button>
         <div className="tool-grid">
           {PLACE_TOOLS.map((t) => (
             <button

@@ -127,7 +127,9 @@ export function RightPanel() {
 
           <h2>Selected</h2>
           <SelectionActions />
-          {!selected && !selection && <p className="hint">Click a point or vertex to select it, then drag or Delete.</p>}
+          {!selected && !selection && (
+            <p className="hint">Use Select, then click anywhere in an object's bounds. Overlaps open a picker. Then drag or Delete.</p>
+          )}
           {selected && (
             <ObjectInspector
               obj={selected}

@@ -229,6 +229,64 @@ button.active {
   touch-action: none;
 }
 
+.plan-canvas.select-tool {
+  cursor: default;
+}
+
+.file-chip {
+  align-self: center;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding: 0.15rem 0.35rem;
+}
+
+.hit-picker {
+  position: absolute;
+  z-index: 6;
+  min-width: 196px;
+  max-width: 260px;
+  background: #241e14;
+  border: 1px solid var(--accent-2);
+  border-radius: 8px;
+  padding: 0.4rem;
+  box-shadow: 0 10px 28px #0009;
+}
+
+.hit-picker h3 {
+  margin: 0 0 0.2rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-2);
+}
+
+.hit-picker .hint {
+  margin-bottom: 0.35rem;
+}
+
+.hit-picker button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 0.25rem;
+  text-align: left;
+}
+
+.hit-picker button span {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.hit-picker button.preferred {
+  border-color: var(--accent-2);
+  background: #3d3420;
+}
+
 .status {
   display: flex;
   flex-wrap: wrap;

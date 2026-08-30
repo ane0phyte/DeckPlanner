@@ -8,12 +8,30 @@ import { inchesPerUnit } from "./model/project";
 import { formatInches } from "./units/length";
 import { selectionLabel } from "./edit/handles";
 function Shell() {
-  const { project, tool, undo, redo, deleteSelected, finishDraft, cancelDraft, selection } = useStore();
+  const {
+    project,
+    tool,
+    undo,
+    redo,
+    deleteSelected,
+    finishDraft,
+    cancelDraft,
+    selection,
+    setTool,
+    saveProject,
+    saveProjectAs,
+  } = useStore();
   const iPerU = inchesPerUnit(project);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (e.shiftKey) void saveProjectAs();
+        else void saveProject();
+        return;
+      }
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
       if ((e.ctrlKey || e.metaKey) && e.key === "z") {
         e.preventDefault();
@@ -29,11 +47,14 @@ function Shell() {
         deleteSelected();
       }
       if (e.key === "Enter") finishDraft();
-      if (e.key === "Escape") cancelDraft();
+      if (e.key === "Escape") {
+        cancelDraft();
+        setTool("select");
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cancelDraft, deleteSelected, finishDraft, redo, undo]);
+  }, [cancelDraft, deleteSelected, finishDraft, redo, saveProject, saveProjectAs, setTool, undo]);
 
   return (
     <div className="app">
@@ -59,7 +80,7 @@ function Shell() {
             <span>{project.flags.filter((f) => f.severity === "violation").length} violations</span>
             <span className="muted">
               {selectionLabel(selection, project) ??
-                "Click a point or vertex to select it, then drag or Delete. Existing floating deck is backdrop only."}
+                "Select tool: click an object (or its bounds) to select, then drag or Delete. Esc returns to Select. Existing floating deck is backdrop only."}
             </span>
           </footer>
         </div>
