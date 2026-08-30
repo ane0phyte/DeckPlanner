@@ -27,6 +27,21 @@ describe("joistSupport", () => {
     expect(bays.backSpanIn).toBeCloseTo(120);
   });
 
+  it("merges supports that sit only a few inches apart", () => {
+    const bays = joistBaySpansIn(
+      { a: { x: 0, y: 0 }, b: { x: 0, y: 144 } },
+      { a: { x: -10, y: 0 }, b: { x: 10, y: 0 } },
+      [
+        { a: { x: -10, y: 120 }, b: { x: 10, y: 120 } },
+        { a: { x: -10, y: 121.5 }, b: { x: 10, y: 121.5 } },
+      ],
+      1,
+    );
+    expect(bays.supportCount).toBe(2);
+    expect(bays.backSpanIn).toBeGreaterThan(100);
+    expect(bays.cantileverIn).toBeLessThan(26);
+  });
+
   it("splits a board at a breaker seam", () => {
     const pieces = splitSegmentAtLines(
       { x: 0, y: 10 },

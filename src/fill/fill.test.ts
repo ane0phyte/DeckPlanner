@@ -358,8 +358,10 @@ describe("Fill", () => {
       if (j.type !== "joist") continue;
       const bays = joistBaySpansIn(j, ledger, beams, iPerU);
       const maxSpan = JOIST_SPAN_R507_6[j.nominalSize as "2x8" | "2x10" | "2x12" | "2x6"][col];
-      const maxCant = maxJoistCantilever(j.nominalSize as "2x8", bays.backSpanIn || bays.maxBayIn);
-      const ok = bays.maxBayIn <= maxSpan + 1e-6 && (maxCant == null || bays.cantileverIn <= maxCant + 1e-6);
+      const back = bays.backSpanIn > 6 ? bays.backSpanIn : bays.maxBayIn;
+      const maxCant = maxJoistCantilever(j.nominalSize as "2x8", back);
+      const cantOk = maxCant == null ? bays.cantileverIn <= 1 : bays.cantileverIn <= maxCant + 1e-6;
+      const ok = bays.maxBayIn <= maxSpan + 1e-6 && cantOk;
       if (!ok) {
         expect(
           r.project.flags.some((f) => f.section === "R507.6" && f.objectIds.includes(j.id)),

@@ -50,6 +50,20 @@ export function joistSupportTs(
   return ts;
 }
 
+/** Collapse supports that are only a few inches apart (crossing beams, ledger+beam). */
+export function mergeSupportTs(ts: number[], lenIn: number, minBayIn = 3): number[] {
+  if (ts.length < 2) return ts;
+  const out: number[] = [ts[0]];
+  for (let i = 1; i < ts.length; i++) {
+    if ((ts[i] - out[out.length - 1]) * lenIn < minBayIn) {
+      out[out.length - 1] = (out[out.length - 1] + ts[i]) / 2;
+    } else {
+      out.push(ts[i]);
+    }
+  }
+  return out;
+}
+
 export function joistBaySpansIn(
   joist: { a: Point; b: Point },
   ledger: { a: Point; b: Point },
@@ -57,8 +71,9 @@ export function joistBaySpansIn(
   iPerU: number,
 ): { maxBayIn: number; cantileverIn: number; supportCount: number; backSpanIn: number } {
   const pad = 4 / iPerU;
-  const ts = joistSupportTs(joist, ledger, beams, pad);
+  const raw = joistSupportTs(joist, ledger, beams, pad);
   const lenIn = dist(joist.a, joist.b) * iPerU;
+  const ts = mergeSupportTs(raw, lenIn, 3);
   if (ts.length === 0) {
     return { maxBayIn: lenIn, cantileverIn: lenIn, supportCount: 0, backSpanIn: 0 };
   }
