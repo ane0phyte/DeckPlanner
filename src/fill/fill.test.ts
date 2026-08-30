@@ -103,7 +103,7 @@ describe("Fill", () => {
     const p = baseProject();
     const s = createUserObject("stairs", [
       { x: 200, y: 0 },
-      { x: 240, y: 0 },
+      { x: 248, y: 40 },
     ]);
     if (s && (s.type === "stairs" || s.type === "existingStairs")) {
       s.widthIn = 30;

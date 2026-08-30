@@ -7,6 +7,8 @@ import type { PlannerObject } from "../model/types";
 import { deleteButtonLabel, selectionLabel } from "../edit/handles";
 import { drawElevationToCanvas } from "../canvas/elevation";
 import { useEffect, useRef, useState } from "react";
+import { defaultWidthIn, getOrientedBox, relabelBox, type BoxKind } from "../edit/typedBox";
+import { inchesPerUnit } from "../model/project";
 
 export function RightPanel() {
   const { project, selectedIds, selection, mutate, updateObject, convertSelectedWall, select } =
@@ -188,6 +190,10 @@ function ObjectInspector({
   convertWall: () => void;
   onDeleteWhole: () => void;
 }) {
+  const { project, mutate } = useStore();
+  const iPerU = inchesPerUnit(project);
+  const fromBox =
+    obj.type === "stairs" || obj.type === "existingStairs" ? defaultWidthIn(obj, iPerU) : null;
   return (
     <div>
       <p className="hint">
@@ -305,9 +311,30 @@ function ObjectInspector({
           ]}
         />
       )}
+      {getOrientedBox(obj) && (
+        <SelectField
+          label="Type"
+          value={obj.type === "board" ? "board" : "stairs"}
+          onChange={(v) => {
+            mutate((p) => ({
+              ...p,
+              objects: p.objects.map((o) => (o.id === obj.id ? relabelBox(o, v as BoxKind) : o)),
+            }));
+          }}
+          options={[
+            { value: "stairs", label: "Stairs" },
+            { value: "board", label: "Board" },
+          ]}
+        />
+      )}
       {(obj.type === "stairs" || obj.type === "existingStairs") && (
         <>
-          <LengthField label="Width (clear)" value={obj.widthIn} onChange={(v) => update(obj.id, { widthIn: v })} />
+          <LengthField
+            label="Width (clear)"
+            value={obj.widthIn}
+            placeholder={fromBox != null ? formatInches(fromBox) : "from box when scale is set"}
+            onChange={(v) => update(obj.id, { widthIn: v })}
+          />
           <LengthField label="Rise (typed)" value={obj.riseIn} onChange={(v) => update(obj.id, { riseIn: v })} />
         </>
       )}

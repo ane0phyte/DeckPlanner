@@ -11,6 +11,7 @@ import type { Id, PlannerObject, Point, Project, Tool } from "../model/types";
 import { cloneProject, emptyProject, inchesPerUnit } from "../model/project";
 import { evaluateProject } from "../irc/checks";
 import { convertHouseWallToLedger, createUserObject, fillProject } from "../fill/fill";
+import { createBoxObject } from "../edit/typedBox";
 import { snapPoint } from "../geom/vec";
 import {
   deleteSelection,
@@ -32,8 +33,9 @@ function isDrawTool(t: Tool): t is DrawTool {
   return t !== "select" && t !== "pan" && t !== "scale";
 }
 
-const POINT_PLACE_TOOLS = new Set<Tool>(["post", "nodigPoint", "stairs", "existingStairs"]);
+const POINT_PLACE_TOOLS = new Set<Tool>(["post", "nodigPoint"]);
 const POLYGON_TOOLS = new Set<Tool>(["outline", "nodigZone"]);
+const BOX_TOOLS = new Set<Tool>(["box"]);
 
 interface Store {
   project: Project;
@@ -165,15 +167,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const commitDrawnObject = useCallback(
     (kind: DrawTool, pts: Point[]) => {
-      const obj = createUserObject(kind, pts);
+      const obj = BOX_TOOLS.has(kind)
+        ? pts[0] && pts[1]
+          ? createBoxObject("stairs", pts[0], pts[1])
+          : null
+        : createUserObject(kind as PlannerObject["type"], pts);
       if (!obj) return;
       if (obj.type === "ledger") {
         obj.label = "Ledger";
         if (!obj.flashingProduct) obj.flashingProduct = project.settings.flashingProduct;
       }
-      if (obj.type === "stairs") obj.label = "Stairs (reused)";
-      if (obj.type === "existingStairs") obj.label = "Existing stairs";
-      if ((obj.type === "stairs" || obj.type === "existingStairs") && project.settings.heights.stairRiseIn != null) {
+      if (obj.type === "stairs" && project.settings.heights.stairRiseIn != null) {
         obj.riseIn = project.settings.heights.stairRiseIn;
       }
       mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
@@ -213,11 +217,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const finishDraft = useCallback(() => {
-    if (!POLYGON_TOOLS.has(tool) || draftPoints.length < 3) {
-      setDraftPoints([]);
-      return;
-    }
-    if (!isDrawTool(tool)) {
+    if ((tool !== "outline" && tool !== "nodigZone") || draftPoints.length < 3) {
       setDraftPoints([]);
       return;
     }

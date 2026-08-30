@@ -137,10 +137,11 @@ export function Toolbar() {
         </button>
         <button
           type="button"
-          className={tool === "stairs" || tool === "existingStairs" ? "active" : ""}
-          onClick={() => setTool("stairs")}
+          className={tool === "box" ? "active" : ""}
+          onClick={() => setTool("box")}
+          title="Draw a rectangle, then move, resize, or rotate. Set type (stairs or board) after."
         >
-          Stairs
+          Draw box
         </button>
       </div>
       <div className="toolbar-group">

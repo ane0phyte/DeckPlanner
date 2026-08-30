@@ -34,7 +34,7 @@ npm run build
 2. **Set scale** — tool *Set scale*, click two points on a known length, type feet-inches (`12-0` or `10' 6"`).
 3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close. After placing, the app returns to **Select**. Click anywhere inside an object’s bounds (yellow highlight). Overlapping objects open a picker (smallest first). Drag or **Delete** / Backspace. **Esc** returns to Select. Undo covers move and delete.
 4. **Ledger** — toolbar or left **Ledger** tool. Two clicks or click-drag along the house. This creates a ledger object (size, band/rim, flashing, fasteners), not only a house line. You do not need click-to-convert. Optional: convert a house-wall line. Fill needs outline **+ ledger**.
-4b. **Stairs** — toolbar or left **Stairs** (reused / existing). Click once to place. Type rise and width. Then Select / drag / Delete like other objects. Optional: click-to-convert existing stairs from the photo.
+4b. **Draw box** — toolbar or left **Draw box**. Click-drag a rectangle (or two clicks). Then move, resize (corners), and rotate (extra knob). Set **Type** on the right: stairs or board. Stair width can default from the box when scale is set; rise is typed. One stair object type — no Existing / Reused / click-to-place stairs tools.
 5. **Decking** — type product name, gap, and max joist spacing. Set joist and decking directions **before Fill**.
 6. **Heights** — type deck, grade, door sill, stair rise. Grade is one height; the site is treated as flat. No door object.
 7. **Fill** — places first posts and beams (you do not place them first), then joists, boards, blocking, rim, plus:

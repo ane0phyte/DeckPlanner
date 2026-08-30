@@ -11,8 +11,7 @@ export type Tool =
   | "outline"
   | "ledger"
   | "houseWall"
-  | "existingStairs"
-  | "stairs"
+  | "box"
   | "post"
   | "beam"
   | "joist"
@@ -113,12 +112,15 @@ export interface HouseWallObject extends MemberCommon {
 }
 
 export interface StairsObject extends MemberCommon {
-  type: "existingStairs" | "stairs";
+  type: "stairs" | "existingStairs";
   origin: Point;
   angleDeg: number;
+  /** World-space box (photo units). */
+  length: number;
+  width: number;
+  /** Typed clear width (inches). Defaults from the box when scale is set. */
   widthIn: number | null;
   riseIn: number | null;
-  lengthIn: number;
 }
 
 export interface PostObject extends MemberCommon {
@@ -161,6 +163,11 @@ export interface BoardObject extends MemberCommon {
   b: Point;
   actualWidthIn: number;
   actualThicknessIn: number;
+  /** Present when the user drew a box and labeled it board. Fill boards stay lines. */
+  origin?: Point;
+  angleDeg?: number;
+  length?: number;
+  width?: number;
 }
 
 export interface BreakerObject extends MemberCommon {
