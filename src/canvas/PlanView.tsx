@@ -5,6 +5,7 @@ import {
   getCachedPhoto,
   preloadPhoto,
   worldFromScreen,
+  zoomView,
   type View,
 } from "./render";
 import type { Point } from "../model/types";
@@ -273,18 +274,22 @@ export function PlanView() {
     drag.current = null;
   }
 
-  function onWheel(e: React.WheelEvent) {
-    e.preventDefault();
-    const r = canvasRef.current!.getBoundingClientRect();
-    const sx = e.clientX - r.left;
-    const sy = e.clientY - r.top;
-    const factor = e.deltaY < 0 ? 1.08 : 0.92;
-    setView((v) => {
-      const nx = sx - (sx - v.panX) * factor;
-      const ny = sy - (sy - v.panY) * factor;
-      return { scale: Math.min(12, Math.max(0.05, v.scale * factor)), panX: nx, panY: ny };
-    });
-  }
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const sx = e.clientX - r.left;
+      const sy = e.clientY - r.top;
+      const delta = e.deltaY || e.deltaX;
+      if (delta === 0) return;
+      const factor = delta < 0 ? 1.08 : 0.92;
+      setView((v) => zoomView(v, sx, sy, factor));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   function onDoubleClick() {
     if (tool === "outline" || tool === "nodigZone") finishDraft();
@@ -329,7 +334,6 @@ export function PlanView() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onWheel={onWheel}
         onDoubleClick={onDoubleClick}
       />
       {picker && (

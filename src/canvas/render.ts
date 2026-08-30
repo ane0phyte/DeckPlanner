@@ -25,6 +25,17 @@ export function screenFromWorld(p: Point, view: View): Point {
   return { x: p.x * view.scale + view.panX, y: p.y * view.scale + view.panY };
 }
 
+/** Zoom the camera around a screen point (work-area local pixels). */
+export function zoomView(view: View, sx: number, sy: number, factor: number): View {
+  const scale = Math.min(12, Math.max(0.05, view.scale * factor));
+  const applied = scale / view.scale;
+  return {
+    scale,
+    panX: sx - (sx - view.panX) * applied,
+    panY: sy - (sy - view.panY) * applied,
+  };
+}
+
 export interface DrawOpts {
   width: number;
   height: number;
