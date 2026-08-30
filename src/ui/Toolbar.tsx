@@ -79,8 +79,8 @@ export function Toolbar() {
           Save As
         </button>
         <span className="file-chip" title={fileName ?? "Not saved yet"}>
-          {fileName ?? "Unsaved"}
-          {dirty ? " *" : ""}
+          <span className="file-chip-name">{fileName ?? "Unsaved"}</span>
+          {dirty ? <span className="file-dirty">*</span> : null}
         </span>
         <input
           ref={photoRef}

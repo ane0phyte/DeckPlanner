@@ -277,13 +277,24 @@ button.select-cta {
 
 .file-chip {
   align-self: center;
-  max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  max-width: 14rem;
   color: var(--muted);
   font-size: 0.75rem;
   padding: 0.15rem 0.35rem;
+}
+
+.file-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-dirty {
+  flex-shrink: 0;
+  color: var(--accent-2);
 }
 
 .hit-picker {
