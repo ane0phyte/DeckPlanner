@@ -3,12 +3,14 @@ import { LAYER_LABELS } from "../model/types";
 import { useStore } from "../state/store";
 import { Field, LengthField, NumField, SelectField, TextField, Toggle } from "./fields";
 
+/** Locked leftover-button pass. Stairs/board use Draw box + Type. Do not delete these. */
 const PLACE_TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: "pan", label: "Pan", hint: "Drag the photo." },
   { id: "scale", label: "Set scale", hint: "Click two points, type a known length." },
   { id: "outline", label: "New deck outline", hint: "Polygon. Double-click or Enter to close. Not the floating deck." },
 ];
 
+/** Locked leftover-button pass. No Existing stairs / Board in photo convert. */
 const CONVERT_TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: "houseWall", label: "House wall", hint: "Click-to-convert a wall line. Optional — you can draw a ledger directly." },
   { id: "post", label: "Post", hint: "Click. XY only." },
