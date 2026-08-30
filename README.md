@@ -75,3 +75,5 @@ Post holes are **XY only**. No frost. No footing sizing.
 ## Project file
 
 JSON (`*.deckplanner.json`) including the photo as a data URL. Everything stays on disk you choose. Undo is in-session only.
+
+**Save** (Ctrl/Cmd+S) writes back to the same file after Open or a first Save (Chrome File System Access — the file handle is kept in the session). If the project has never been saved, Save acts like **Save As**. **Save As** (Ctrl/Cmd+Shift+S) always opens a picker. The toolbar shows the filename and a dirty `*`. No account or cloud.

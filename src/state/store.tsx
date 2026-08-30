@@ -292,21 +292,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [rememberOpenedFile]);
 
   const saveProject = useCallback(async () => {
-    const suggested = projectFileName(project, fileName);
-    const result = await saveProjectToKnownFile(project, fileHandleRef.current, suggested);
-    if (result.cancelled) return;
-    fileHandleRef.current = result.handle;
-    setFileName(result.fileName);
-    setDirty(false);
+    try {
+      const suggested = projectFileName(project, fileName);
+      const result = await saveProjectToKnownFile(project, fileHandleRef.current, suggested);
+      if (result.cancelled) return;
+      fileHandleRef.current = result.handle;
+      setFileName(result.fileName);
+      setDirty(false);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Save failed.");
+    }
   }, [fileName, project]);
 
   const saveProjectAs = useCallback(async () => {
-    const suggested = projectFileName(project, fileName);
-    const result = await writeProjectAs(project, suggested);
-    if (result.cancelled) return;
-    fileHandleRef.current = result.handle;
-    setFileName(result.fileName);
-    setDirty(false);
+    try {
+      const suggested = projectFileName(project, fileName);
+      const result = await writeProjectAs(project, suggested);
+      if (result.cancelled) return;
+      fileHandleRef.current = result.handle;
+      setFileName(result.fileName);
+      setDirty(false);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Save As failed.");
+    }
   }, [fileName, project]);
 
   const openFromDisk = useCallback(async () => {

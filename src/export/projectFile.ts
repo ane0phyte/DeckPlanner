@@ -71,7 +71,9 @@ export async function saveProjectAs(
     try {
       const handle = await window.showSaveFilePicker({
         suggestedName,
+        id: "deck-planner-project",
         types: [PROJECT_FILE_TYPE],
+        excludeAcceptAllOption: true,
       });
       await writeProjectToHandle(project, handle);
       return { cancelled: false, handle, fileName: handle.name };
@@ -107,7 +109,9 @@ export async function pickAndReadProject(): Promise<OpenResult | null> {
   try {
     const [handle] = await window.showOpenFilePicker({
       multiple: false,
+      id: "deck-planner-project",
       types: [PROJECT_FILE_TYPE],
+      excludeAcceptAllOption: true,
     });
     const file = await handle.getFile();
     return {

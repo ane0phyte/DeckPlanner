@@ -21,10 +21,14 @@ interface FilePickerAcceptType {
 interface Window {
   showSaveFilePicker?: (options?: {
     suggestedName?: string;
+    id?: string;
+    excludeAcceptAllOption?: boolean;
     types?: FilePickerAcceptType[];
   }) => Promise<FileSystemFileHandle>;
   showOpenFilePicker?: (options?: {
     multiple?: boolean;
+    id?: string;
+    excludeAcceptAllOption?: boolean;
     types?: FilePickerAcceptType[];
   }) => Promise<FileSystemFileHandle[]>;
 }
