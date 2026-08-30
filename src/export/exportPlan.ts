@@ -153,20 +153,4 @@ function downloadDataUrl(url: string, filename: string): void {
   a.click();
 }
 
-export function saveProjectFile(project: Project): void {
-  const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = slug(project.settings.name) + ".deckplanner.json";
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-export async function readProjectFile(file: File): Promise<Project> {
-  const text = await file.text();
-  const data = JSON.parse(text) as Project;
-  if (data.version !== 1 || !data.settings || !Array.isArray(data.objects)) {
-    throw new Error("Not a Deck Planner v1 project file.");
-  }
-  return data;
-}
+export { saveProjectFile, readProjectFile } from "./projectFile";

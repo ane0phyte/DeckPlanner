@@ -3,7 +3,6 @@ import { useStore } from "../state/store";
 import {
   drawPlanToCanvas,
   getCachedPhoto,
-  hitTest,
   preloadPhoto,
   worldFromScreen,
   type View,
@@ -13,11 +12,35 @@ import { dist, sub } from "../geom/vec";
 import { parseLengthToInches } from "../units/length";
 import {
   collectHandles,
+  deleteButtonLabel,
   hitHandle,
   moveHandle,
+  selectionLabel,
   translateObject,
   type Handle,
 } from "../edit/handles";
+import {
+  hitTestAll,
+  objectDisplayName,
+  objectTypeLabel,
+  resolveSelectClick,
+  type HitCandidate,
+} from "../edit/hit";
+
+const TOOL_HINTS: Partial<Record<string, string>> = {
+  ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
+  stairs: "Stairs — click once to place. Then Select is on so you can click, drag, or Delete.",
+  existingStairs: "Existing stairs — click once to place. Esc or Select to click objects.",
+  outline: "Outline — click corners. Close / Enter when done. Esc or Select to click objects.",
+  nodigZone: "No-dig zone — click corners, then Close. Esc or Select to click objects.",
+  scale: "Scale — click two points, type a known length. Esc or Select to click objects.",
+  houseWall: "House wall — two clicks. Esc or Select to click objects.",
+  post: "Post — click to place. Then Select so you can click it.",
+  beam: "Beam — two clicks. Esc or Select to click objects.",
+  joist: "Joist — two clicks. Esc or Select to click objects.",
+  board: "Board — two clicks. Esc or Select to click objects.",
+  pan: "Pan — drag the photo. Esc or Select to click objects.",
+};
 
 export function PlanView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,8 +62,15 @@ export function PlanView() {
     endTransient,
     setScale,
     setDraftPoint,
+    deleteSelected,
+    setTool,
   } = useStore();
   const [view, setView] = useState<View>({ panX: 40, panY: 40, scale: 0.6 });
+  const [picker, setPicker] = useState<{
+    hits: HitCandidate[];
+    x: number;
+    y: number;
+  } | null>(null);
   const drag = useRef<{
     mode: "pan" | "move-object" | "move-handle" | "draw-line";
     last: Point;
@@ -95,6 +125,14 @@ export function PlanView() {
     return worldFromScreen(e.clientX - r.left, e.clientY - r.top, view);
   }
 
+  function pickerPos(e: React.PointerEvent): { x: number; y: number } {
+    const r = wrapRef.current!.getBoundingClientRect();
+    return {
+      x: Math.min(Math.max(8, e.clientX - r.left), r.width - 200),
+      y: Math.min(Math.max(8, e.clientY - r.top), r.height - 80),
+    };
+  }
+
   function handlesAt(p: Point): Handle | null {
     const radius = Math.max(10 / view.scale, 8);
     return hitHandle(collectHandles(project, draftPoints, selectedIds), p, radius);
@@ -104,19 +142,30 @@ export function PlanView() {
     const p = localPoint(e);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     if (e.button === 1 || tool === "pan" || e.shiftKey) {
+      setPicker(null);
       drag.current = { mode: "pan", last: { x: e.clientX, y: e.clientY }, moved: false };
       return;
     }
 
     const handle = handlesAt(p);
     const drawing = tool !== "select" && tool !== "scale";
-    if (handle && (!drawing || handle.kind === "draft")) {
+    const tightR = Math.max(6 / view.scale, 4);
+    const tightHandle = hitHandle(collectHandles(project, draftPoints, selectedIds), p, tightR);
+    if (drawing && handle && handle.kind === "draft") {
+      setPicker(null);
       selectHandle(handle);
       drag.current = { mode: "move-handle", last: p, handle, moved: false };
       return;
     }
+    if (!drawing && tightHandle) {
+      setPicker(null);
+      selectHandle(tightHandle);
+      drag.current = { mode: "move-handle", last: p, handle: tightHandle, moved: false };
+      return;
+    }
 
     if (tool === "scale") {
+      setPicker(null);
       const snapped = applySnap(p);
       if (draftPoints.length === 0) {
         addDraftPoint(snapped);
@@ -129,6 +178,7 @@ export function PlanView() {
     }
 
     if (tool === "ledger" || tool === "houseWall" || tool === "beam" || tool === "joist" || tool === "board" || tool === "guard" || tool === "rim" || tool === "breaker" || tool === "blocking") {
+      setPicker(null);
       if (draftPoints.length === 0) {
         addDraftPoint(p);
         drag.current = { mode: "draw-line", last: applySnap(p), start: applySnap(p), moved: false };
@@ -139,16 +189,27 @@ export function PlanView() {
     }
 
     if (tool !== "select") {
+      setPicker(null);
       addDraftPoint(p);
       return;
     }
 
-    const hit = hitTest(project, p, view.scale);
-    if (hit) {
-      select([hit.id]);
-      drag.current = { mode: "move-object", last: p, id: hit.id, moved: false };
-    } else {
+    const hits = hitTestAll(project, p, view.scale);
+    const resolved = resolveSelectClick(false, hits);
+    if (resolved.kind === "none") {
+      setPicker(null);
       select([]);
+      return;
+    }
+    if (resolved.kind === "object") {
+      setPicker(null);
+      select([resolved.id]);
+      drag.current = { mode: "move-object", last: p, id: resolved.id, moved: false };
+      return;
+    }
+    if (resolved.kind === "picker") {
+      select([resolved.hits[0].object.id]);
+      setPicker({ hits: resolved.hits, ...pickerPos(e) });
     }
   }
 
@@ -229,17 +290,73 @@ export function PlanView() {
     if (tool === "outline" || tool === "nodigZone") finishDraft();
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPicker(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  function pickObject(id: string) {
+    select([id]);
+    setPicker(null);
+  }
+
+  const selectedHint = selectionLabel(selection, project);
+
   return (
     <div className="plan-wrap" ref={wrapRef}>
+      {tool !== "select" && (
+        <div className="canvas-banner draw-banner">
+          <span>{TOOL_HINTS[tool] ?? `${tool} — Esc or Select to click objects.`}</span>
+          <button type="button" onClick={() => setTool("select")}>
+            Select
+          </button>
+        </div>
+      )}
+      {tool === "select" && selectedHint && (
+        <div className="canvas-banner select-banner">
+          <span>Selected: {selectedHint}</span>
+          <button type="button" className="danger" onClick={deleteSelected}>
+            {deleteButtonLabel(selection)}
+          </button>
+        </div>
+      )}
       <canvas
         ref={canvasRef}
-        className="plan-canvas"
+        className={`plan-canvas${tool === "select" ? " select-tool" : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onWheel={onWheel}
         onDoubleClick={onDoubleClick}
       />
+      {picker && (
+        <div className="hit-picker" style={{ left: picker.x, top: picker.y }}>
+          <h3>Which object?</h3>
+          <p className="hint">
+            {picker.hits.length} overlap — smallest first. Click the one you meant.
+          </p>
+          <div className="hit-picker-list">
+            {picker.hits.map((h, i) => (
+              <button
+                key={h.object.id}
+                type="button"
+                className={i === 0 ? "preferred" : ""}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => pickObject(h.object.id)}
+              >
+                <strong>{objectDisplayName(h.object)}</strong>
+                <span>
+                  {objectTypeLabel(h.object.type)}
+                  {i === 0 ? " · smallest" : ""}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

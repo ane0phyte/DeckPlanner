@@ -16,6 +16,13 @@ import {
   deleteSelection,
   type Selection,
 } from "../edit/handles";
+import {
+  parseProjectText,
+  pickAndReadProject,
+  projectFileName,
+  saveProjectAs as writeProjectAs,
+  saveProjectToKnownFile,
+} from "../export/projectFile";
 
 const MAX_HISTORY = 80;
 
@@ -53,13 +60,19 @@ interface Store {
   loadPhoto: (dataUrl: string, widthPx: number, heightPx: number) => void;
   setScale: (a: Point, b: Point, knownLengthIn: number) => void;
   newProject: () => void;
-  openProject: (p: Project) => void;
+  openProject: (p: Project, file?: { fileName?: string; handle?: FileSystemFileHandle | null }) => void;
   updateObject: (id: Id, patch: Partial<PlannerObject>) => void;
   convertSelectedWall: () => void;
   beginTransient: () => void;
   preview: (fn: (p: Project) => Project) => void;
   endTransient: () => void;
   setDraftPoint: (index: number, p: Point) => void;
+  fileName: string | null;
+  dirty: boolean;
+  saveProject: () => Promise<void>;
+  saveProjectAs: () => Promise<void>;
+  openFromDisk: () => Promise<boolean>;
+  openProjectFile: (file: File) => Promise<void>;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -70,10 +83,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     p.flags = evaluateProject(p);
     return p;
   });
-  const [tool, setTool] = useState<Tool>("select");
+  const [tool, setToolState] = useState<Tool>("select");
   const [selectedIds, setSelectedIds] = useState<Id[]>([]);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+
+  const setTool = useCallback((t: Tool) => {
+    setToolState(t);
+    setDraftPoints([]);
+  }, []);
+
+  const rememberOpenedFile = useCallback((name: string | null, handle?: FileSystemFileHandle | null) => {
+    setFileName(name);
+    fileHandleRef.current = handle ?? null;
+    setDirty(false);
+  }, []);
 
   const selectHandle = useCallback((s: Selection | null) => {
     setSelection(s);
@@ -101,6 +128,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     future.current = [];
     const flagged = { ...next, flags: evaluateProject(next) };
     setProject(flagged);
+    setDirty(true);
   }, [project]);
 
   const mutate = useCallback(
@@ -115,6 +143,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!prev) return;
     future.current.push(cloneProject(project));
     setProject(prev);
+    setDirty(true);
   }, [project]);
 
   const redo = useCallback(() => {
@@ -122,6 +151,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!nxt) return;
     past.current.push(cloneProject(project));
     setProject(nxt);
+    setDirty(true);
   }, [project]);
 
   const applySnap = useCallback(
@@ -147,19 +177,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         obj.riseIn = project.settings.heights.stairRiseIn;
       }
       mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
-      if ("origin" in obj) {
-        selectHandle({ kind: "origin", objectId: obj.id, point: obj.origin });
-      } else if ("b" in obj) {
-        selectHandle({ kind: "endpoint", objectId: obj.id, end: "b", point: obj.b });
-      } else if ("points" in obj && obj.points.length) {
-        const last = obj.points.length - 1;
-        selectHandle({ kind: "vertex", objectId: obj.id, index: last, point: obj.points[last] });
-      } else {
-        select([obj.id]);
-      }
+      select([obj.id]);
       setDraftPoints([]);
+      if (!POLYGON_TOOLS.has(kind)) setToolState("select");
     },
-    [mutate, project.settings.flashingProduct, project.settings.heights.stairRiseIn, select, selectHandle],
+    [mutate, project.settings.flashingProduct, project.settings.heights.stairRiseIn, select],
   );
 
   const addDraftPoint = useCallback(
@@ -202,15 +224,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const obj = createUserObject(tool, draftPoints);
     if (obj) {
       mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
-      if ("points" in obj && obj.points.length) {
-        const last = obj.points.length - 1;
-        selectHandle({ kind: "vertex", objectId: obj.id, index: last, point: obj.points[last] });
-      } else {
-        select([obj.id]);
-      }
+      select([obj.id]);
     }
     setDraftPoints([]);
-  }, [draftPoints, mutate, select, selectHandle, tool]);
+    setToolState("select");
+  }, [draftPoints, mutate, select, tool]);
 
   const cancelDraft = useCallback(() => setDraftPoints([]), []);
 
@@ -246,6 +264,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       mutate((pr) => ({ ...pr, scale: { a, b, knownLengthIn } }));
       setDraftPoints([]);
       selectHandle({ kind: "scale", end: "b", point: b });
+      setToolState("select");
     },
     [mutate, selectHandle],
   );
@@ -257,17 +276,61 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSelectedIds([]);
     setSelection(null);
     setDraftPoints([]);
-    setTool("select");
-  }, []);
+    setToolState("select");
+    rememberOpenedFile(null, null);
+  }, [rememberOpenedFile]);
 
-  const openProject = useCallback((p: Project) => {
+  const openProject = useCallback((p: Project, file?: { fileName?: string; handle?: FileSystemFileHandle | null }) => {
     past.current = [];
     future.current = [];
     setProject({ ...p, flags: evaluateProject(p) });
     setSelectedIds([]);
     setSelection(null);
     setDraftPoints([]);
-  }, []);
+    setToolState("select");
+    rememberOpenedFile(file?.fileName ?? null, file?.handle ?? null);
+  }, [rememberOpenedFile]);
+
+  const saveProject = useCallback(async () => {
+    try {
+      const suggested = projectFileName(project, fileName);
+      const result = await saveProjectToKnownFile(project, fileHandleRef.current, suggested);
+      if (result.cancelled) return;
+      fileHandleRef.current = result.handle;
+      setFileName(result.fileName);
+      setDirty(false);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Save failed.");
+    }
+  }, [fileName, project]);
+
+  const saveProjectAs = useCallback(async () => {
+    try {
+      const suggested = projectFileName(project, fileName);
+      const result = await writeProjectAs(project, suggested);
+      if (result.cancelled) return;
+      fileHandleRef.current = result.handle;
+      setFileName(result.fileName);
+      setDirty(false);
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Save As failed.");
+    }
+  }, [fileName, project]);
+
+  const openFromDisk = useCallback(async () => {
+    const result = await pickAndReadProject();
+    if (!result) return false;
+    openProject(result.project, { fileName: result.fileName, handle: result.handle });
+    return true;
+  }, [openProject]);
+
+  const openProjectFile = useCallback(
+    async (file: File) => {
+      const p = await parseProjectText(await file.text());
+      openProject(p, { fileName: file.name, handle: null });
+    },
+    [openProject],
+  );
 
   const updateObject = useCallback(
     (id: Id, patch: Partial<PlannerObject>) => {
@@ -307,6 +370,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       past.current = [...past.current, transientFrom.current].slice(-MAX_HISTORY);
       future.current = [];
       transientFrom.current = null;
+      setDirty(true);
     }
     setProject((cur) => ({ ...cur, flags: evaluateProject(cur) }));
   }, []);
@@ -318,10 +382,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       selectedIds,
       selection,
       draftPoints,
-      setTool: (t) => {
-        setTool(t);
-        setDraftPoints([]);
-      },
+      setTool,
       select,
       selectHandle,
       commit,
@@ -347,6 +408,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       preview,
       endTransient,
       setDraftPoint,
+      fileName,
+      dirty,
+      saveProject,
+      saveProjectAs,
+      openFromDisk,
+      openProjectFile,
     }),
     [
       addDraftPoint,
@@ -357,23 +424,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       convertSelectedWall,
       beginTransient,
       deleteSelected,
+      dirty,
       endTransient,
+      fileName,
       draftPoints,
       finishDraft,
       loadPhoto,
       mutate,
       newProject,
+      openFromDisk,
       openProject,
+      openProjectFile,
       preview,
       project,
       redo,
       runFill,
+      saveProject,
+      saveProjectAs,
       select,
       selectHandle,
       selectedIds,
       selection,
       setDraftPoint,
       setScale,
+      setTool,
       tool,
       undo,
       updateObject,

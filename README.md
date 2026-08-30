@@ -32,9 +32,9 @@ npm run build
 
 1. **Photo** — load one overhead image. The floating deck stays in the picture; do not convert it.
 2. **Set scale** — tool *Set scale*, click two points on a known length, type feet-inches (`12-0` or `10' 6"`).
-3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close. Click a vertex or point to select it (yellow ring), then drag or **Delete** / Backspace. The toolbar **Delete** control removes the selected point, vertex, or the whole outline. Undo covers move and delete.
-4. **Ledger** — toolbar or left **Ledger** tool. Two clicks or click-drag along the house. This creates a ledger object (size, band/rim, flashing, fasteners), not only a house line. Optional: convert a house-wall line. Fill needs outline **+ ledger**.
-4b. **Stairs** — toolbar or left **Stairs** (reused / existing). Click once to place. Type rise and width. Drag or Delete after. Optional: click-to-convert existing stairs from the photo.
+3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close. After placing, the app returns to **Select**. Click anywhere inside an object’s bounds (yellow highlight). Overlapping objects open a picker (smallest first). Drag or **Delete** / Backspace. **Esc** returns to Select. Undo covers move and delete.
+4. **Ledger** — toolbar or left **Ledger** tool. Two clicks or click-drag along the house. This creates a ledger object (size, band/rim, flashing, fasteners), not only a house line. You do not need click-to-convert. Optional: convert a house-wall line. Fill needs outline **+ ledger**.
+4b. **Stairs** — toolbar or left **Stairs** (reused / existing). Click once to place. Type rise and width. Then Select / drag / Delete like other objects. Optional: click-to-convert existing stairs from the photo.
 5. **Decking** — type product name, gap, and max joist spacing. Set joist and decking directions **before Fill**.
 6. **Heights** — type deck, grade, door sill, stair rise. Grade is one height; the site is treated as flat. No door object.
 7. **Fill** — places first posts and beams (you do not place them first), then joists, boards, blocking, rim, plus:
@@ -42,7 +42,7 @@ npm run build
    - R507.9.2 lateral-load devices (type the product; ledger bolts do not count)
    - R507.9.1.5 ledger flashing (type the product; do not invent one)
 8. **No-dig** — polygons and points with a typed buffer. Fill **shifts** posts along the beam; it does not omit them.
-9. **Undo** after edits. **Save** / **Open** a `.deckplanner.json` file.
+9. **Undo** after edits. **Save** writes back to the same file after Open or a first Save (Chrome File System Access). **Save As** always picks a new name. **Ctrl/Cmd+S** / **Shift+S**. Filename and dirty `*` show in the toolbar. No account / cloud.
 10. **Export** Letter PDF (plan + cut list + elevation) or PNG plan / cut list / elevation.
 
 Snap increment starts **off**. You turn it on and set the increment.
@@ -75,3 +75,5 @@ Post holes are **XY only**. No frost. No footing sizing.
 ## Project file
 
 JSON (`*.deckplanner.json`) including the photo as a data URL. Everything stays on disk you choose. Undo is in-session only.
+
+**Save** (Ctrl/Cmd+S) writes back to the same file after Open or a first Save (Chrome File System Access — the file handle is kept in the session). If the project has never been saved, Save acts like **Save As**. **Save As** (Ctrl/Cmd+Shift+S) always opens a picker. The toolbar shows the filename and a dirty `*`. No account or cloud.

@@ -189,8 +189,8 @@ function drawObject(
   const stroke = selected ? "#ffe08a" : colorFor(o);
   ctx.strokeStyle = stroke;
   ctx.fillStyle = stroke;
-  ctx.lineWidth = exportMode ? 2 : 1.5;
-  ctx.globalAlpha = o.type === "board" ? 0.35 : 1;
+  ctx.lineWidth = selected && !exportMode ? 3.5 : exportMode ? 2 : 1.5;
+  ctx.globalAlpha = o.type === "board" ? (selected ? 0.5 : 0.35) : 1;
 
   switch (o.type) {
     case "outline":
@@ -200,7 +200,7 @@ function drawObject(
       ctx.moveTo(pts[0].x, pts[0].y);
       for (const p of pts.slice(1)) ctx.lineTo(p.x, p.y);
       ctx.closePath();
-      ctx.globalAlpha = o.type === "nodigZone" ? 0.25 : 0.08;
+      ctx.globalAlpha = o.type === "nodigZone" ? (selected ? 0.4 : 0.25) : selected ? 0.18 : 0.08;
       ctx.fill();
       ctx.globalAlpha = 1;
       ctx.stroke();
@@ -264,7 +264,7 @@ function drawObject(
       const u = iPerU ?? 1;
       const w = (o.widthIn ?? 36) / u;
       const len = o.lengthIn / u;
-      ctx.globalAlpha = 0.25;
+      ctx.globalAlpha = selected ? 0.45 : 0.25;
       ctx.fillRect(0, -w / 2, len, w);
       ctx.globalAlpha = 1;
       ctx.strokeRect(0, -w / 2, len, w);
@@ -334,19 +334,7 @@ export function objectPoints(o: PlannerObject): Point[] {
   }
 }
 
-export function hitTest(project: Project, p: Point, viewScale: number): PlannerObject | null {
-  const tol = 8 / viewScale;
-  let best: PlannerObject | null = null;
-  let bestD = tol;
-  for (const o of [...project.objects].reverse()) {
-    const d = hitDist(o, p);
-    if (d < bestD) {
-      bestD = d;
-      best = o;
-    }
-  }
-  return best;
-}
+export { hitTest } from "../edit/hit";
 
 function drawHandles(
   ctx: CanvasRenderingContext2D,
@@ -375,41 +363,5 @@ function drawHandles(
       ctx.lineWidth = 2 * inv;
       ctx.stroke();
     }
-  }
-}
-
-function hitDist(o: PlannerObject, p: Point): number {
-  switch (o.type) {
-    case "outline":
-    case "nodigZone": {
-      let best = 999;
-      const pts = polygonClosed(o.points);
-      for (let i = 0; i < pts.length; i++) {
-        const a = pts[i];
-        const b = pts[(i + 1) % pts.length];
-        const abx = b.x - a.x;
-        const aby = b.y - a.y;
-        const l2 = abx * abx + aby * aby;
-        const t = l2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2));
-        best = Math.min(best, dist(p, { x: a.x + abx * t, y: a.y + aby * t }));
-      }
-      return best;
-    }
-    case "post":
-    case "nodigPoint":
-    case "lateralDevice":
-      return dist(p, o.origin);
-    case "stairs":
-    case "existingStairs":
-      return dist(p, o.origin);
-    default:
-      if ("a" in o && "b" in o) {
-        const abx = o.b.x - o.a.x;
-        const aby = o.b.y - o.a.y;
-        const l2 = abx * abx + aby * aby;
-        const t = l2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((p.x - o.a.x) * abx + (p.y - o.a.y) * aby) / l2));
-        return dist(p, { x: o.a.x + abx * t, y: o.a.y + aby * t });
-      }
-      return 999;
   }
 }
