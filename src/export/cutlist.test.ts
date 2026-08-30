@@ -27,6 +27,10 @@ describe("cut list", () => {
     const list = buildCutList(filled);
     expect(list.lumber.some((r) => r.member === "Joist" && r.qty > 0)).toBe(true);
     expect(list.counts.some((c) => c.item.includes("hangers") && c.product === "hanger-typed")).toBe(true);
+    expect(list.lumber.some((r) => r.member.startsWith("Beam") && r.qty > 0)).toBe(true);
+    expect(list.accessories.some((a) => a.item.includes("Decking surface") && /sf/.test(a.layoutAmount))).toBe(
+      true,
+    );
     expect(list.wasteNote).toMatch(/net only/i);
     expect(list.counts.every((c) => !/\b[A-Z]{2,}\d{3,}\b/.test(c.product))).toBe(true);
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dressedSize, formatInches, ftIn, parseLengthToInches } from "./length";
+import { dressedSize, formatInches, ftIn, parseKnownLengthToInches, parseLengthToInches } from "./length";
 
 describe("length", () => {
   it("parses feet-inches", () => {
@@ -10,6 +10,19 @@ describe("length", () => {
     expect(parseLengthToInches("1/8")).toBe(0.125);
     expect(parseLengthToInches("0.125")).toBe(0.125);
     expect(parseLengthToInches("16")).toBe(16);
+    expect(parseLengthToInches("4'")).toBe(48);
+    expect(parseLengthToInches("4 feet")).toBe(48);
+    expect(parseLengthToInches("4 ft")).toBe(48);
+  });
+
+  it("parses scale known length as feet-inches (bare 4 is 4 feet)", () => {
+    expect(parseKnownLengthToInches("4")).toBe(48);
+    expect(parseKnownLengthToInches("4'")).toBe(48);
+    expect(parseKnownLengthToInches("4 feet")).toBe(48);
+    expect(parseKnownLengthToInches("4-0")).toBe(48);
+    expect(parseKnownLengthToInches("4\"")).toBe(4);
+    expect(parseKnownLengthToInches("4 in")).toBe(4);
+    expect(parseKnownLengthToInches("12-0")).toBe(144);
   });
 
   it("formats feet-inches", () => {

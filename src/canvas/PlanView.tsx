@@ -10,7 +10,7 @@ import {
 } from "./render";
 import type { Point } from "../model/types";
 import { dist, sub } from "../geom/vec";
-import { parseLengthToInches } from "../units/length";
+import { parseKnownLengthToInches } from "../units/length";
 import {
   collectHandles,
   deleteButtonLabel,
@@ -169,8 +169,8 @@ export function PlanView() {
       if (draftPoints.length === 0) {
         addDraftPoint(snapped);
       } else {
-        const raw = window.prompt("Known length (feet-inches, e.g. 12-0 or 10' 6\")", "12-0");
-        const inches = raw ? parseLengthToInches(raw) : null;
+        const raw = window.prompt("Known length in feet-inches (4 or 4' = 4 feet; 4\" = 4 inches)", "12-0");
+        const inches = raw ? parseKnownLengthToInches(raw) : null;
         if (inches && inches > 0) setScale(draftPoints[0], snapped, inches);
       }
       return;

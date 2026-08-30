@@ -83,21 +83,53 @@ export function inflate(points: Point[], amount: number): Point[] {
   return points.map((p) => ({ x: p.x + amount, y: p.y + amount }));
 }
 
-/** Clip an infinite line against a convex-or-concave polygon using segment sampling. */
-export function clipLineToPolygon(
-  a: Point,
-  b: Point,
-  poly: Point[],
-  samples = 400,
-): { a: Point; b: Point } | null {
-  const hits: { t: number; p: Point }[] = [];
-  for (let i = 0; i <= samples; i++) {
-    const t = i / samples;
-    const p = lerp(a, b, t);
-    if (pointInPolygon(p, poly)) hits.push({ t, p });
+function lineSegIntersectT(a1: Point, a2: Point, b1: Point, b2: Point): number | null {
+  const r = sub(a2, a1);
+  const s = sub(b2, b1);
+  const den = r.x * s.y - r.y * s.x;
+  if (Math.abs(den) < 1e-12) return null;
+  const qp = sub(b1, a1);
+  const t = (qp.x * s.y - qp.y * s.x) / den;
+  const u = (qp.x * r.y - qp.y * r.x) / den;
+  if (t < -1e-9 || t > 1 + 1e-9 || u < -1e-9 || u > 1 + 1e-9) return null;
+  return Math.max(0, Math.min(1, t));
+}
+
+/**
+ * Clip a segment to a convex or concave polygon.
+ * Returns every inside run separately — does not bridge voids / water / notches.
+ */
+export function clipLineToPolygonSegments(a: Point, b: Point, poly: Point[]): { a: Point; b: Point }[] {
+  const pts = polygonClosed(poly);
+  if (pts.length < 3) return [];
+  const ts: number[] = [];
+  const addT = (t: number) => {
+    if (ts.every((x) => Math.abs(x - t) > 1e-9)) ts.push(t);
+  };
+  if (pointInPolygon(a, pts)) addT(0);
+  if (pointInPolygon(b, pts)) addT(1);
+  for (const e of polygonEdges(pts)) {
+    const t = lineSegIntersectT(a, b, e.a, e.b);
+    if (t != null) addT(t);
   }
-  if (hits.length < 2) return null;
-  return { a: hits[0].p, b: hits[hits.length - 1].p };
+  ts.sort((x, y) => x - y);
+  const segs: { a: Point; b: Point }[] = [];
+  for (let i = 0; i < ts.length - 1; i++) {
+    const t0 = ts[i];
+    const t1 = ts[i + 1];
+    if (t1 - t0 < 1e-8) continue;
+    const mid = lerp(a, b, (t0 + t1) / 2);
+    if (!pointInPolygon(mid, pts)) continue;
+    segs.push({ a: lerp(a, b, t0), b: lerp(a, b, t1) });
+  }
+  return segs;
+}
+
+/** Longest inside run, or null. Prefer clipLineToPolygonSegments for concave outlines. */
+export function clipLineToPolygon(a: Point, b: Point, poly: Point[]): { a: Point; b: Point } | null {
+  const segs = clipLineToPolygonSegments(a, b, poly);
+  if (!segs.length) return null;
+  return segs.reduce((best, s) => (dist(s.a, s.b) > dist(best.a, best.b) ? s : best));
 }
 
 export function extendSegment(a: Point, b: Point, extra: number): { a: Point; b: Point } {

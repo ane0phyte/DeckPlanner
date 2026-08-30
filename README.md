@@ -31,7 +31,7 @@ npm run build
 ## Success path
 
 1. **Photo** — load one overhead image. The floating deck stays in the picture; do not convert it.
-2. **Set scale** — tool *Set scale*, click two points on a known length, type feet-inches (`12-0` or `10' 6"`).
+2. **Set scale** — tool *Set scale*, click two points on a known length, type feet-inches (`12-0`, `4` or `4'` = 4 feet / 48 in; `4"` = 4 inches).
 3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close. After placing, the app returns to **Select**. Click anywhere inside an object’s bounds (yellow highlight). Overlapping objects open a picker (smallest first). Drag or **Delete** / Backspace. **Esc** returns to Select. Undo covers move and delete.
 4. **Ledger** — toolbar or left **Ledger** tool. Two clicks or click-drag along the house. This creates a ledger object (size, band/rim, flashing, fasteners), not only a house line. You do not need click-to-convert. Optional: convert a house-wall line. Fill needs outline **+ ledger**.
 4b. **Draw box** — toolbar or left **Draw box**. Click-drag a rectangle (or two clicks). Then move, resize (corners), and rotate (extra knob). Set **Type** on the right: stairs or board. Stair width can default from the box when scale is set; rise is typed. One stair object type. No Existing / Reused / click-to-place stairs / Existing stairs (photo) / Board in photo convert buttons.
@@ -54,6 +54,8 @@ Snap increment starts **off**. You turn it on and set the increment.
 **Keep as they are:** Pan; Select; Set scale (two clicks + typed length); New deck outline (polygon); Ledger (click or drag line along house); House wall (line convert); Post (click XY); Beam drop (two-click line, diagonals allowed when placed); Joist (two-click line); Breaker board (seam, then doubled joists vs blocking); Blocking (two-click); Rim (two-click); Guard (place tool; Fill still adds required R321 guards); No-dig zone (polygon); No-dig point (click + typed buffer).
 
 Also: wheel zoom only over the work area; Save / Save As; bounds select + overlap picker. No invented IRC spans.
+
+Fill clips posts, beams, joists, and boards to the **outline polygon** (every inside run; it does not fill the bounding box or bridge voids / water). Orthogonal only. User-placed diagonal beams are kept. Missing Table R507.5(1) cells are flagged; members are still placed. No-dig shifts posts along the beam **inside** the outline. Cut list reports beam/joist counts and Trex / decking **square footage of the outlined polygon minus gaps**.
 
 ## What Fill will not do
 
