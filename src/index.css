@@ -55,6 +55,24 @@ button.primary {
   border-color: var(--accent);
 }
 
+button.danger {
+  background: #4a2226;
+  border-color: #e06c75;
+}
+
+button.danger:disabled {
+  border-color: var(--line);
+  background: #2a251f;
+}
+
+.selection-box {
+  border: 1px solid #5a4a28;
+  background: #241e14;
+  border-radius: 6px;
+  padding: 0.45rem 0.5rem 0.55rem;
+  margin-bottom: 0.6rem;
+}
+
 button.active {
   background: #3d3420;
   border-color: var(--accent-2);
@@ -149,6 +167,24 @@ button.active {
 .wide {
   width: 100%;
   margin-top: 0.4rem;
+}
+
+.place-ledger {
+  margin-top: 0.55rem;
+  background: #3d2a18;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.stair-place {
+  margin-top: 0.4rem;
+}
+
+.stair-kind {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
 }
 
 .field {

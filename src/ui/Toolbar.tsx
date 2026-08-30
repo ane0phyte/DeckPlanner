@@ -17,8 +17,12 @@ export function Toolbar() {
     redo,
     canUndo,
     canRedo,
+    deleteSelected,
+    selection,
     runFill,
     loadPhoto,
+    setTool,
+    tool,
     newProject,
     openProject,
   } = useStore();
@@ -87,6 +91,31 @@ export function Toolbar() {
         </button>
         <button type="button" disabled={!canRedo} onClick={redo}>
           Redo
+        </button>
+        <button
+          type="button"
+          className="danger"
+          disabled={!selection}
+          onClick={deleteSelected}
+          title="Delete selected point, vertex, or object (Delete / Backspace)"
+        >
+          Delete
+        </button>
+      </div>
+      <div className="toolbar-group">
+        <button
+          type="button"
+          className={tool === "ledger" ? "active" : ""}
+          onClick={() => setTool("ledger")}
+        >
+          Ledger
+        </button>
+        <button
+          type="button"
+          className={tool === "stairs" || tool === "existingStairs" ? "active" : ""}
+          onClick={() => setTool("stairs")}
+        >
+          Stairs
         </button>
       </div>
       <div className="toolbar-group">

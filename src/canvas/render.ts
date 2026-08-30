@@ -3,6 +3,11 @@ import { inchesPerUnit } from "../model/project";
 import { formatInches } from "../units/length";
 import { dist, midpoint } from "../geom/vec";
 import { bbox, polygonClosed } from "../geom/polygon";
+import {
+  collectHandles,
+  handleKey,
+  type Selection,
+} from "../edit/handles";
 
 export interface View {
   panX: number;
@@ -24,6 +29,7 @@ export interface DrawOpts {
   width: number;
   height: number;
   selectedIds: string[];
+  selection?: Selection | null;
   draftPoints: Point[];
   tool: Tool;
   showAllLabels: boolean;
@@ -96,6 +102,10 @@ export function drawPlanToCanvas(
     ctx.fillStyle = "#e8c36a";
     ctx.font = `${12 / view.scale}px system-ui`;
     ctx.fillText(`scale ${formatInches(project.scale.knownLengthIn)}`, mid.x + 6, mid.y - 6);
+  }
+
+  if (!opts.exportMode) {
+    drawHandles(ctx, project, opts.draftPoints, opts.selectedIds, opts.selection ?? null, view.scale);
   }
 
   if (opts.draftPoints.length) {
@@ -251,7 +261,13 @@ function drawObject(
       ctx.save();
       ctx.translate(o.origin.x, o.origin.y);
       ctx.rotate((o.angleDeg * Math.PI) / 180);
-      ctx.strokeRect(0, -(o.widthIn ?? 36) / (iPerU ?? 1) / 2, o.lengthIn, (o.widthIn ?? 36) / (iPerU ?? 1));
+      const u = iPerU ?? 1;
+      const w = (o.widthIn ?? 36) / u;
+      const len = o.lengthIn / u;
+      ctx.globalAlpha = 0.25;
+      ctx.fillRect(0, -w / 2, len, w);
+      ctx.globalAlpha = 1;
+      ctx.strokeRect(0, -w / 2, len, w);
       ctx.restore();
       if (labels) {
         ctx.fillStyle = exportMode ? "#1c1916" : "#f3ead8";
@@ -332,13 +348,52 @@ export function hitTest(project: Project, p: Point, viewScale: number): PlannerO
   return best;
 }
 
+function drawHandles(
+  ctx: CanvasRenderingContext2D,
+  project: Project,
+  draftPoints: Point[],
+  selectedIds: string[],
+  selection: Selection | null,
+  viewScale: number,
+): void {
+  const handles = collectHandles(project, draftPoints, selectedIds);
+  const inv = 1 / viewScale;
+  for (const h of handles) {
+    const selected = selection ? handleKey(h) === handleKey(selection) : false;
+    const r = (selected ? 7 : 5) * inv;
+    ctx.beginPath();
+    ctx.arc(h.point.x, h.point.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = selected ? "#ffe08a" : "#f3ead8";
+    ctx.strokeStyle = selected ? "#1c1916" : "#3a342c";
+    ctx.lineWidth = 1.5 * inv;
+    ctx.fill();
+    ctx.stroke();
+    if (selected) {
+      ctx.beginPath();
+      ctx.arc(h.point.x, h.point.y, r + 3 * inv, 0, Math.PI * 2);
+      ctx.strokeStyle = "#ffe08a";
+      ctx.lineWidth = 2 * inv;
+      ctx.stroke();
+    }
+  }
+}
+
 function hitDist(o: PlannerObject, p: Point): number {
   switch (o.type) {
     case "outline":
     case "nodigZone": {
-      const b = bbox(o.points);
-      if (p.x >= b.min.x && p.x <= b.max.x && p.y >= b.min.y && p.y <= b.max.y) return 4;
-      return 999;
+      let best = 999;
+      const pts = polygonClosed(o.points);
+      for (let i = 0; i < pts.length; i++) {
+        const a = pts[i];
+        const b = pts[(i + 1) % pts.length];
+        const abx = b.x - a.x;
+        const aby = b.y - a.y;
+        const l2 = abx * abx + aby * aby;
+        const t = l2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2));
+        best = Math.min(best, dist(p, { x: a.x + abx * t, y: a.y + aby * t }));
+      }
+      return best;
     }
     case "post":
     case "nodigPoint":

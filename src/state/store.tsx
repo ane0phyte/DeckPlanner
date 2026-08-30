@@ -12,6 +12,10 @@ import { cloneProject, emptyProject, inchesPerUnit } from "../model/project";
 import { evaluateProject } from "../irc/checks";
 import { convertHouseWallToLedger, createUserObject, fillProject } from "../fill/fill";
 import { snapPoint } from "../geom/vec";
+import {
+  deleteSelection,
+  type Selection,
+} from "../edit/handles";
 
 const MAX_HISTORY = 80;
 
@@ -21,13 +25,18 @@ function isDrawTool(t: Tool): t is DrawTool {
   return t !== "select" && t !== "pan" && t !== "scale";
 }
 
+const POINT_PLACE_TOOLS = new Set<Tool>(["post", "nodigPoint", "stairs", "existingStairs"]);
+const POLYGON_TOOLS = new Set<Tool>(["outline", "nodigZone"]);
+
 interface Store {
   project: Project;
   tool: Tool;
   selectedIds: Id[];
+  selection: Selection | null;
   draftPoints: Point[];
   setTool: (t: Tool) => void;
   select: (ids: Id[]) => void;
+  selectHandle: (s: Selection | null) => void;
   commit: (next: Project) => void;
   mutate: (fn: (p: Project) => Project) => void;
   undo: () => void;
@@ -36,6 +45,7 @@ interface Store {
   canRedo: boolean;
   applySnap: (p: Point) => Point;
   addDraftPoint: (p: Point) => void;
+  completeLine: (end: Point, start?: Point) => void;
   finishDraft: () => void;
   cancelDraft: () => void;
   deleteSelected: () => void;
@@ -49,6 +59,7 @@ interface Store {
   beginTransient: () => void;
   preview: (fn: (p: Project) => Project) => void;
   endTransient: () => void;
+  setDraftPoint: (index: number, p: Point) => void;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -61,7 +72,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   });
   const [tool, setTool] = useState<Tool>("select");
   const [selectedIds, setSelectedIds] = useState<Id[]>([]);
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
+
+  const selectHandle = useCallback((s: Selection | null) => {
+    setSelection(s);
+    if (!s) {
+      setSelectedIds([]);
+      return;
+    }
+    if (s.kind === "draft" || s.kind === "scale") {
+      setSelectedIds([]);
+      return;
+    }
+    setSelectedIds([s.objectId]);
+  }, []);
+
+  const select = useCallback((ids: Id[]) => {
+    setSelectedIds(ids);
+    setSelection(ids[0] ? { kind: "object", objectId: ids[0] } : null);
+  }, []);
   const past = useRef<Project[]>([]);
   const future = useRef<Project[]>([]);
   const transientFrom = useRef<Project | null>(null);
@@ -103,30 +133,65 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [project],
   );
 
+  const commitDrawnObject = useCallback(
+    (kind: DrawTool, pts: Point[]) => {
+      const obj = createUserObject(kind, pts);
+      if (!obj) return;
+      if (obj.type === "ledger") {
+        obj.label = "Ledger";
+        if (!obj.flashingProduct) obj.flashingProduct = project.settings.flashingProduct;
+      }
+      if (obj.type === "stairs") obj.label = "Stairs (reused)";
+      if (obj.type === "existingStairs") obj.label = "Existing stairs";
+      if ((obj.type === "stairs" || obj.type === "existingStairs") && project.settings.heights.stairRiseIn != null) {
+        obj.riseIn = project.settings.heights.stairRiseIn;
+      }
+      mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
+      if ("origin" in obj) {
+        selectHandle({ kind: "origin", objectId: obj.id, point: obj.origin });
+      } else if ("b" in obj) {
+        selectHandle({ kind: "endpoint", objectId: obj.id, end: "b", point: obj.b });
+      } else if ("points" in obj && obj.points.length) {
+        const last = obj.points.length - 1;
+        selectHandle({ kind: "vertex", objectId: obj.id, index: last, point: obj.points[last] });
+      } else {
+        select([obj.id]);
+      }
+      setDraftPoints([]);
+    },
+    [mutate, project.settings.flashingProduct, project.settings.heights.stairRiseIn, select, selectHandle],
+  );
+
   const addDraftPoint = useCallback(
     (p: Point) => {
       const snapped = applySnap(p);
-      const polygonTools = new Set<Tool>(["outline", "nodigZone"]);
-      const pointTools = new Set<Tool>(["post", "nodigPoint"]);
-      if (pointTools.has(tool) && isDrawTool(tool)) {
-        const obj = createUserObject(tool, [snapped]);
-        if (obj) mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
-        setDraftPoints([]);
+      if (POINT_PLACE_TOOLS.has(tool) && isDrawTool(tool)) {
+        commitDrawnObject(tool, [snapped]);
         return;
       }
-      setDraftPoints((pts) => [...pts, snapped]);
-      if (!polygonTools.has(tool) && draftPoints.length >= 1 && isDrawTool(tool)) {
-        const obj = createUserObject(tool, [...draftPoints, snapped]);
-        if (obj) mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
-        setDraftPoints([]);
+      const nextDraft = [...draftPoints, snapped];
+      setDraftPoints(nextDraft);
+      selectHandle({ kind: "draft", index: nextDraft.length - 1, point: snapped });
+      if (!POLYGON_TOOLS.has(tool) && draftPoints.length >= 1 && isDrawTool(tool)) {
+        commitDrawnObject(tool, nextDraft);
       }
     },
-    [applySnap, draftPoints, mutate, tool],
+    [applySnap, commitDrawnObject, draftPoints, selectHandle, tool],
+  );
+
+  const completeLine = useCallback(
+    (end: Point, start?: Point) => {
+      const a = start ?? draftPoints[0];
+      if (!isDrawTool(tool) || !a) return;
+      const b = applySnap(end);
+      if (Math.hypot(b.x - a.x, b.y - a.y) < 2) return;
+      commitDrawnObject(tool, [a, b]);
+    },
+    [applySnap, commitDrawnObject, draftPoints, tool],
   );
 
   const finishDraft = useCallback(() => {
-    const polygonTools = new Set<Tool>(["outline", "nodigZone"]);
-    if (!polygonTools.has(tool) || draftPoints.length < 3) {
+    if (!POLYGON_TOOLS.has(tool) || draftPoints.length < 3) {
       setDraftPoints([]);
       return;
     }
@@ -135,17 +200,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return;
     }
     const obj = createUserObject(tool, draftPoints);
-    if (obj) mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
+    if (obj) {
+      mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
+      if ("points" in obj && obj.points.length) {
+        const last = obj.points.length - 1;
+        selectHandle({ kind: "vertex", objectId: obj.id, index: last, point: obj.points[last] });
+      } else {
+        select([obj.id]);
+      }
+    }
     setDraftPoints([]);
-  }, [draftPoints, mutate, tool]);
+  }, [draftPoints, mutate, select, selectHandle, tool]);
 
   const cancelDraft = useCallback(() => setDraftPoints([]), []);
 
   const deleteSelected = useCallback(() => {
+    if (selection) {
+      const result = deleteSelection(project, selection, draftPoints);
+      if (result.draftPoints) setDraftPoints(result.draftPoints);
+      if (selection.kind !== "draft") mutate(() => result.project);
+      if (result.clearedSelection) selectHandle(null);
+      return;
+    }
     if (!selectedIds.length) return;
     mutate((pr) => ({ ...pr, objects: pr.objects.filter((o) => !selectedIds.includes(o.id)) }));
-    setSelectedIds([]);
-  }, [mutate, selectedIds]);
+    selectHandle(null);
+  }, [draftPoints, mutate, project, selectHandle, selectedIds, selection]);
 
   const runFill = useCallback(() => {
     const result = fillProject(project);
@@ -165,8 +245,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (a: Point, b: Point, knownLengthIn: number) => {
       mutate((pr) => ({ ...pr, scale: { a, b, knownLengthIn } }));
       setDraftPoints([]);
+      selectHandle({ kind: "scale", end: "b", point: b });
     },
-    [mutate],
+    [mutate, selectHandle],
   );
 
   const newProject = useCallback(() => {
@@ -174,6 +255,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     future.current = [];
     setProject(emptyProject());
     setSelectedIds([]);
+    setSelection(null);
     setDraftPoints([]);
     setTool("select");
   }, []);
@@ -183,6 +265,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     future.current = [];
     setProject({ ...p, flags: evaluateProject(p) });
     setSelectedIds([]);
+    setSelection(null);
     setDraftPoints([]);
   }, []);
 
@@ -201,6 +284,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (!id) return;
     mutate((pr) => convertHouseWallToLedger(id, pr));
   }, [mutate, selectedIds]);
+
+  const setDraftPoint = useCallback((index: number, p: Point) => {
+    setDraftPoints((pts) => {
+      if (index < pts.length) return pts.map((q, i) => (i === index ? p : q));
+      const next = pts.slice();
+      next[index] = p;
+      return next;
+    });
+  }, []);
 
   const beginTransient = useCallback(() => {
     transientFrom.current = cloneProject(project);
@@ -224,12 +316,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       project,
       tool,
       selectedIds,
+      selection,
       draftPoints,
       setTool: (t) => {
         setTool(t);
         setDraftPoints([]);
       },
-      select: setSelectedIds,
+      select,
+      selectHandle,
       commit,
       mutate,
       undo,
@@ -238,6 +332,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       canRedo: future.current.length > 0,
       applySnap,
       addDraftPoint,
+      completeLine,
       finishDraft,
       cancelDraft,
       deleteSelected,
@@ -251,12 +346,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       beginTransient,
       preview,
       endTransient,
+      setDraftPoint,
     }),
     [
       addDraftPoint,
       applySnap,
       cancelDraft,
       commit,
+      completeLine,
       convertSelectedWall,
       beginTransient,
       deleteSelected,
@@ -271,7 +368,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       project,
       redo,
       runFill,
+      select,
+      selectHandle,
       selectedIds,
+      selection,
+      setDraftPoint,
       setScale,
       tool,
       undo,

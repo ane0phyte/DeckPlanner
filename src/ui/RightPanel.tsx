@@ -4,11 +4,13 @@ import { buildCutList } from "../export/cutlist";
 import { formatInches } from "../units/length";
 import { dressedSize } from "../units/length";
 import type { PlannerObject } from "../model/types";
+import { deleteButtonLabel, selectionLabel } from "../edit/handles";
 import { drawElevationToCanvas } from "../canvas/elevation";
 import { useEffect, useRef, useState } from "react";
 
 export function RightPanel() {
-  const { project, selectedIds, mutate, updateObject, convertSelectedWall } = useStore();
+  const { project, selectedIds, selection, mutate, updateObject, convertSelectedWall, select } =
+    useStore();
   const selected = project.objects.find((o) => o.id === selectedIds[0]);
   const [tab, setTab] = useState<"inspect" | "flags" | "cut" | "elev">("inspect");
 
@@ -123,9 +125,20 @@ export function RightPanel() {
             }
           />
 
-          <h2>Selected object</h2>
-          {!selected && <p className="hint">Select an object on the plan.</p>}
-          {selected && <ObjectInspector obj={selected} update={updateObject} convertWall={convertSelectedWall} />}
+          <h2>Selected</h2>
+          <SelectionActions />
+          {!selected && !selection && <p className="hint">Click a point or vertex to select it, then drag or Delete.</p>}
+          {selected && (
+            <ObjectInspector
+              obj={selected}
+              update={updateObject}
+              convertWall={convertSelectedWall}
+              onDeleteWhole={() => {
+                mutate((p) => ({ ...p, objects: p.objects.filter((o) => o.id !== selected.id) }));
+                select([]);
+              }}
+            />
+          )}
         </section>
       )}
 
@@ -149,20 +162,40 @@ export function RightPanel() {
   );
 }
 
+function SelectionActions() {
+  const { project, selection, deleteSelected } = useStore();
+  if (!selection) return null;
+  return (
+    <div className="selection-box">
+      <p className="hint">{selectionLabel(selection, project)}</p>
+      <button type="button" className="wide danger" onClick={deleteSelected}>
+        {deleteButtonLabel(selection)}
+      </button>
+    </div>
+  );
+}
+
 function ObjectInspector({
   obj,
   update,
   convertWall,
+  onDeleteWhole,
 }: {
   obj: PlannerObject;
   update: (id: string, patch: Partial<PlannerObject>) => void;
   convertWall: () => void;
+  onDeleteWhole: () => void;
 }) {
   return (
     <div>
       <p className="hint">
         {obj.type} · {obj.source} · {obj.label}
       </p>
+      {(obj.type === "outline" || obj.type === "nodigZone") && (
+        <button type="button" className="wide danger" onClick={onDeleteWhole}>
+          Delete entire {obj.type === "outline" ? "outline" : "no-dig zone"}
+        </button>
+      )}
       <TextField label="Label" value={obj.label} onChange={(v) => update(obj.id, { label: v })} />
       <TextField
         label="Species label"
