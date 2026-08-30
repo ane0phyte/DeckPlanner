@@ -49,20 +49,15 @@ export function LengthField({
     <Field label={`${label}${value != null ? ` · ${formatInches(value)}` : ""}`}>
       <input
         defaultValue={value == null ? "" : String(value)}
-        key={String(value)}
         placeholder={placeholder}
-        onBlur={(e) => {
+        onChange={(e) => {
           const t = e.target.value.trim();
           if (!t) {
             onChange(null);
             return;
           }
           const parsed = parseLengthToInches(t);
-          if (parsed == null) {
-            e.target.value = value == null ? "" : String(value);
-            return;
-          }
-          onChange(parsed);
+          if (parsed != null) onChange(parsed);
         }}
       />
     </Field>
