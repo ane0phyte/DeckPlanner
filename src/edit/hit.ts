@@ -34,7 +34,7 @@ export function objectDisplayName(o: PlannerObject): string {
 }
 
 export function hitPad(viewScale: number): number {
-  return Math.max(14 / viewScale, 8);
+  return Math.max(18 / viewScale, 10);
 }
 
 export function pointInBox(p: Point, min: Point, max: Point): boolean {

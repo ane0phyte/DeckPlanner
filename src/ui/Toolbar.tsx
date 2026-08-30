@@ -122,7 +122,7 @@ export function Toolbar() {
       <div className="toolbar-group">
         <button
           type="button"
-          className={tool === "select" ? "active" : ""}
+          className={tool === "select" ? "active" : "select-cta"}
           onClick={() => setTool("select")}
           title="Click an object to select, then drag or Delete. Esc also returns here."
         >

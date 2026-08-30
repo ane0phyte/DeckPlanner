@@ -78,6 +78,10 @@ button.active {
   border-color: var(--accent-2);
 }
 
+button.select-cta {
+  border-color: var(--accent-2);
+}
+
 .app {
   height: 100%;
   display: flex;
@@ -219,6 +223,42 @@ button.active {
   flex: 1;
   min-height: 0;
   position: relative;
+}
+
+.canvas-banner {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  pointer-events: auto;
+}
+
+.canvas-banner span {
+  min-width: 0;
+}
+
+.canvas-banner button {
+  flex-shrink: 0;
+}
+
+.draw-banner {
+  background: #3d2a18;
+  border: 1px solid var(--accent);
+  color: var(--text);
+}
+
+.select-banner {
+  background: #2a2618;
+  border: 1px solid var(--accent-2);
+  color: var(--text);
 }
 
 .plan-canvas {

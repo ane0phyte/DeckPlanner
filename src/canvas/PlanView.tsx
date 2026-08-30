@@ -12,12 +12,29 @@ import { dist, sub } from "../geom/vec";
 import { parseLengthToInches } from "../units/length";
 import {
   collectHandles,
+  deleteButtonLabel,
   hitHandle,
   moveHandle,
+  selectionLabel,
   translateObject,
   type Handle,
 } from "../edit/handles";
 import { hitTestAll, objectDisplayName, objectTypeLabel, type HitCandidate } from "../edit/hit";
+
+const TOOL_HINTS: Partial<Record<string, string>> = {
+  ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
+  stairs: "Stairs — click once to place. Then Select is on so you can click, drag, or Delete.",
+  existingStairs: "Existing stairs — click once to place. Esc or Select to click objects.",
+  outline: "Outline — click corners. Close / Enter when done. Esc or Select to click objects.",
+  nodigZone: "No-dig zone — click corners, then Close. Esc or Select to click objects.",
+  scale: "Scale — click two points, type a known length. Esc or Select to click objects.",
+  houseWall: "House wall — two clicks. Esc or Select to click objects.",
+  post: "Post — click to place. Then Select so you can click it.",
+  beam: "Beam — two clicks. Esc or Select to click objects.",
+  joist: "Joist — two clicks. Esc or Select to click objects.",
+  board: "Board — two clicks. Esc or Select to click objects.",
+  pan: "Pan — drag the photo. Esc or Select to click objects.",
+};
 
 export function PlanView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +56,8 @@ export function PlanView() {
     endTransient,
     setScale,
     setDraftPoint,
+    deleteSelected,
+    setTool,
   } = useStore();
   const [view, setView] = useState<View>({ panX: 40, panY: 40, scale: 0.6 });
   const [picker, setPicker] = useState<{
@@ -259,8 +278,26 @@ export function PlanView() {
     setPicker(null);
   }
 
+  const selectedHint = selectionLabel(selection, project);
+
   return (
     <div className="plan-wrap" ref={wrapRef}>
+      {tool !== "select" && (
+        <div className="canvas-banner draw-banner">
+          <span>{TOOL_HINTS[tool] ?? `${tool} — Esc or Select to click objects.`}</span>
+          <button type="button" onClick={() => setTool("select")}>
+            Select
+          </button>
+        </div>
+      )}
+      {tool === "select" && selectedHint && (
+        <div className="canvas-banner select-banner">
+          <span>Selected: {selectedHint}</span>
+          <button type="button" className="danger" onClick={deleteSelected}>
+            {deleteButtonLabel(selection)}
+          </button>
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         className={`plan-canvas${tool === "select" ? " select-tool" : ""}`}
