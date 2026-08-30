@@ -19,7 +19,13 @@ import {
   translateObject,
   type Handle,
 } from "../edit/handles";
-import { hitTestAll, objectDisplayName, objectTypeLabel, type HitCandidate } from "../edit/hit";
+import {
+  hitTestAll,
+  objectDisplayName,
+  objectTypeLabel,
+  resolveSelectClick,
+  type HitCandidate,
+} from "../edit/hit";
 
 const TOOL_HINTS: Partial<Record<string, string>> = {
   ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
@@ -143,10 +149,18 @@ export function PlanView() {
 
     const handle = handlesAt(p);
     const drawing = tool !== "select" && tool !== "scale";
-    if (handle && (!drawing || handle.kind === "draft")) {
+    const tightR = Math.max(6 / view.scale, 4);
+    const tightHandle = hitHandle(collectHandles(project, draftPoints, selectedIds), p, tightR);
+    if (drawing && handle && handle.kind === "draft") {
       setPicker(null);
       selectHandle(handle);
       drag.current = { mode: "move-handle", last: p, handle, moved: false };
+      return;
+    }
+    if (!drawing && tightHandle) {
+      setPicker(null);
+      selectHandle(tightHandle);
+      drag.current = { mode: "move-handle", last: p, handle: tightHandle, moved: false };
       return;
     }
 
@@ -181,19 +195,22 @@ export function PlanView() {
     }
 
     const hits = hitTestAll(project, p, view.scale);
-    if (hits.length === 0) {
+    const resolved = resolveSelectClick(false, hits);
+    if (resolved.kind === "none") {
       setPicker(null);
       select([]);
       return;
     }
-    if (hits.length === 1) {
+    if (resolved.kind === "object") {
       setPicker(null);
-      select([hits[0].object.id]);
-      drag.current = { mode: "move-object", last: p, id: hits[0].object.id, moved: false };
+      select([resolved.id]);
+      drag.current = { mode: "move-object", last: p, id: resolved.id, moved: false };
       return;
     }
-    select([hits[0].object.id]);
-    setPicker({ hits, ...pickerPos(e) });
+    if (resolved.kind === "picker") {
+      select([resolved.hits[0].object.id]);
+      setPicker({ hits: resolved.hits, ...pickerPos(e) });
+    }
   }
 
   function onPointerMove(e: React.PointerEvent) {

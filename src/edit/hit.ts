@@ -34,7 +34,7 @@ export function objectDisplayName(o: PlannerObject): string {
 }
 
 export function hitPad(viewScale: number): number {
-  return Math.max(18 / viewScale, 10);
+  return Math.max(24 / viewScale, 12);
 }
 
 export function pointInBox(p: Point, min: Point, max: Point): boolean {
@@ -152,4 +152,25 @@ export function hitTestAll(project: Project, p: Point, viewScale: number): HitCa
 
 export function hitTest(project: Project, p: Point, viewScale: number): PlannerObject | null {
   return hitTestAll(project, p, viewScale)[0]?.object ?? null;
+}
+
+export type SelectClick =
+  | { kind: "handle" }
+  | { kind: "object"; id: string }
+  | { kind: "picker"; hits: HitCandidate[] }
+  | { kind: "none" };
+
+/**
+ * Tight handle (on the knob) wins so vertices stay draggable.
+ * Otherwise overlapping bounds open the picker instead of silently
+ * taking a nearby vertex or the biggest polygon.
+ */
+export function resolveSelectClick(
+  tightHandle: boolean,
+  hits: HitCandidate[],
+): SelectClick {
+  if (tightHandle) return { kind: "handle" };
+  if (hits.length > 1) return { kind: "picker", hits };
+  if (hits.length === 1) return { kind: "object", id: hits[0].object.id };
+  return { kind: "none" };
 }
