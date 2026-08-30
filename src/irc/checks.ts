@@ -118,7 +118,8 @@ export function evaluateProject(project: Project): IrcFlag[] {
         ),
       );
     }
-    if (!ledger.flashingProduct.trim()) {
+    const flashName = ledger.flashingProduct.trim() || project.settings.flashingProduct.trim();
+    if (!flashName) {
       flags.push(
         flag(
           "warn",
