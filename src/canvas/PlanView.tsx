@@ -9,8 +9,15 @@ import {
   type View,
 } from "./render";
 import type { Point } from "../model/types";
-import { add, sub } from "../geom/vec";
+import { dist, sub } from "../geom/vec";
 import { parseLengthToInches } from "../units/length";
+import {
+  collectHandles,
+  hitHandle,
+  moveHandle,
+  translateObject,
+  type Handle,
+} from "../edit/handles";
 
 export function PlanView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -19,23 +26,28 @@ export function PlanView() {
     project,
     tool,
     selectedIds,
+    selection,
     draftPoints,
     select,
+    selectHandle,
     addDraftPoint,
+    completeLine,
     finishDraft,
     applySnap,
     preview,
     beginTransient,
     endTransient,
     setScale,
+    setDraftPoint,
   } = useStore();
   const [view, setView] = useState<View>({ panX: 40, panY: 40, scale: 0.6 });
-  const [scalePrompt, setScalePrompt] = useState<Point[] | null>(null);
   const drag = useRef<{
-    mode: "pan" | "move";
+    mode: "pan" | "move-object" | "move-handle" | "draw-line";
     last: Point;
+    start?: Point;
     id?: string;
-    orig?: Point;
+    handle?: Handle;
+    moved: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -62,7 +74,8 @@ export function PlanView() {
       width: w,
       height: h,
       selectedIds,
-      draftPoints: [...draftPoints, ...(scalePrompt ?? [])],
+      selection,
+      draftPoints,
       tool,
       showAllLabels: project.settings.layers.labels,
       exportMode: false,
@@ -82,37 +95,58 @@ export function PlanView() {
     return worldFromScreen(e.clientX - r.left, e.clientY - r.top, view);
   }
 
+  function handlesAt(p: Point): Handle | null {
+    const radius = Math.max(10 / view.scale, 8);
+    return hitHandle(collectHandles(project, draftPoints, selectedIds), p, radius);
+  }
+
   function onPointerDown(e: React.PointerEvent) {
     const p = localPoint(e);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     if (e.button === 1 || tool === "pan" || e.shiftKey) {
-      drag.current = { mode: "pan", last: { x: e.clientX, y: e.clientY } };
+      drag.current = { mode: "pan", last: { x: e.clientX, y: e.clientY }, moved: false };
       return;
     }
+
+    const handle = handlesAt(p);
+    const drawing = tool !== "select" && tool !== "scale";
+    if (handle && (!drawing || handle.kind === "draft")) {
+      selectHandle(handle);
+      drag.current = { mode: "move-handle", last: p, handle, moved: false };
+      return;
+    }
+
     if (tool === "scale") {
-      const pts = scalePrompt ?? [];
-      const next = [...pts, applySnap(p)];
-      if (next.length < 2) {
-        setScalePrompt(next);
+      const snapped = applySnap(p);
+      if (draftPoints.length === 0) {
+        addDraftPoint(snapped);
       } else {
         const raw = window.prompt("Known length (feet-inches, e.g. 12-0 or 10' 6\")", "12-0");
         const inches = raw ? parseLengthToInches(raw) : null;
-        if (inches && inches > 0) setScale(next[0], next[1], inches);
-        setScalePrompt(null);
+        if (inches && inches > 0) setScale(draftPoints[0], snapped, inches);
       }
       return;
     }
+
+    if (tool === "ledger" || tool === "houseWall" || tool === "beam" || tool === "joist" || tool === "board" || tool === "guard" || tool === "rim" || tool === "breaker" || tool === "blocking") {
+      if (draftPoints.length === 0) {
+        addDraftPoint(p);
+        drag.current = { mode: "draw-line", last: applySnap(p), start: applySnap(p), moved: false };
+      } else {
+        addDraftPoint(p);
+      }
+      return;
+    }
+
     if (tool !== "select") {
       addDraftPoint(p);
       return;
     }
+
     const hit = hitTest(project, p, view.scale);
     if (hit) {
       select([hit.id]);
-      const orig =
-        "origin" in hit ? { ...hit.origin } : "a" in hit ? { ...hit.a } : p;
-      drag.current = { mode: "move", last: p, id: hit.id, orig };
-      beginTransient();
+      drag.current = { mode: "move-object", last: p, id: hit.id, moved: false };
     } else {
       select([]);
     }
@@ -127,26 +161,54 @@ export function PlanView() {
       setView((v) => ({ ...v, panX: v.panX + dx, panY: v.panY + dy }));
       return;
     }
-    if (drag.current.mode === "move" && drag.current.id) {
-      const p = applySnap(localPoint(e));
-      const delta = sub(p, drag.current.last);
-      drag.current.last = p;
+    const p = applySnap(localPoint(e));
+    const delta = sub(p, drag.current.last);
+    if (dist(p, drag.current.last) < 1e-9) return;
+    if (!drag.current.moved) {
+      drag.current.moved = true;
+      if (
+        drag.current.mode === "move-object" ||
+        (drag.current.mode === "move-handle" && drag.current.handle?.kind !== "draft")
+      ) {
+        beginTransient();
+      }
+    }
+    drag.current.last = p;
+
+    if (drag.current.mode === "move-handle" && drag.current.handle) {
+      const h = drag.current.handle;
+      if (h.kind === "draft") {
+        setDraftPoint(h.index, p);
+        selectHandle({ ...h, point: p });
+        return;
+      }
+      preview((pr) => moveHandle(pr, h, p));
+      selectHandle({ ...h, point: p });
+      return;
+    }
+
+    if (drag.current.mode === "draw-line") {
+      setDraftPoint(1, p);
+      return;
+    }
+
+    if (drag.current.mode === "move-object" && drag.current.id) {
       const id = drag.current.id;
-      preview((pr) => ({
-        ...pr,
-        objects: pr.objects.map((o) => {
-          if (o.id !== id) return o;
-          if ("origin" in o) return { ...o, origin: add(o.origin, delta) };
-          if ("a" in o && "b" in o) return { ...o, a: add(o.a, delta), b: add(o.b, delta) };
-          if ("points" in o) return { ...o, points: o.points.map((q) => add(q, delta)) };
-          return o;
-        }),
-      }));
+      preview((pr) => translateObject(pr, id, delta));
     }
   }
 
   function onPointerUp() {
-    if (drag.current?.mode === "move") endTransient();
+    if (drag.current?.mode === "draw-line") {
+      if (drag.current.moved) completeLine(drag.current.last, drag.current.start);
+      drag.current = null;
+      return;
+    }
+    if (drag.current?.mode === "move-object" || drag.current?.mode === "move-handle") {
+      if (drag.current.moved && drag.current.handle?.kind !== "draft") {
+        endTransient();
+      }
+    }
     drag.current = null;
   }
 

@@ -3,15 +3,16 @@ import { LAYER_LABELS } from "../model/types";
 import { useStore } from "../state/store";
 import { Field, LengthField, NumField, SelectField, TextField, Toggle } from "./fields";
 
-const TOOLS: { id: Tool; label: string; hint: string }[] = [
-  { id: "select", label: "Select / drag", hint: "Move objects. Shift-drag pans." },
+const PLACE_TOOLS: { id: Tool; label: string; hint: string }[] = [
+  { id: "select", label: "Select / drag", hint: "Click a point or object, then drag or Delete." },
   { id: "pan", label: "Pan", hint: "Drag the photo." },
   { id: "scale", label: "Set scale", hint: "Click two points, type a known length." },
   { id: "outline", label: "New deck outline", hint: "Polygon. Double-click or Enter to close. Not the floating deck." },
-  { id: "ledger", label: "Ledger", hint: "Two clicks. Own object — not only a house line." },
-  { id: "houseWall", label: "House wall", hint: "Click-to-convert line. Convert to ledger in the inspector." },
-  { id: "existingStairs", label: "Existing stairs", hint: "Photo mark. Not a remove object." },
-  { id: "stairs", label: "Reused stairs", hint: "Placement + typed rise and width. Not parts." },
+];
+
+const CONVERT_TOOLS: { id: Tool; label: string; hint: string }[] = [
+  { id: "houseWall", label: "House wall", hint: "Click-to-convert a wall line. Optional — you can draw a ledger directly." },
+  { id: "existingStairs", label: "Existing stairs (photo)", hint: "Click-to-convert stairs in the photo." },
   { id: "post", label: "Post", hint: "Click. XY only." },
   { id: "beam", label: "Beam (drop)", hint: "Two clicks. Diagonals allowed when you place them." },
   { id: "joist", label: "Joist", hint: "Two clicks." },
@@ -31,13 +32,12 @@ export function LeftPanel() {
   return (
     <aside className="panel left">
       <section>
-        <h2>Tools</h2>
+        <h2>Place on plan</h2>
         <p className="hint">
-          Click-to-convert marks house wall, stairs, outline, posts/beams/boards in the photo, and no-dig.
-          The existing floating deck is photo backdrop only — not an object. Not an image editor. No auto-extract.
+          Draw these on the canvas. You do not need click-to-convert. The existing floating deck is backdrop only.
         </p>
         <div className="tool-grid">
-          {TOOLS.map((t) => (
+          {PLACE_TOOLS.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -49,11 +49,72 @@ export function LeftPanel() {
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          className={`wide place-ledger ${tool === "ledger" ? "active" : ""}`}
+          title="Two clicks or click-drag along the house. Ledger is its own object (size, band/rim, flashing, fasteners)."
+          onClick={() => setTool("ledger")}
+        >
+          Ledger — click or drag along house
+        </button>
+        <div className="stair-place">
+          <button
+            type="button"
+            className={`wide ${tool === "stairs" || tool === "existingStairs" ? "active" : ""}`}
+            title="Click once to place. Then type rise and width. Drag or Delete after."
+            onClick={() => setTool("stairs")}
+          >
+            Stairs — click to place
+          </button>
+          <div className="stair-kind">
+            <button
+              type="button"
+              className={tool === "stairs" ? "active" : ""}
+              onClick={() => setTool("stairs")}
+            >
+              Reused
+            </button>
+            <button
+              type="button"
+              className={tool === "existingStairs" ? "active" : ""}
+              onClick={() => setTool("existingStairs")}
+            >
+              Existing
+            </button>
+          </div>
+        </div>
         {(tool === "outline" || tool === "nodigZone") && (
           <button type="button" className="wide" onClick={finishDraft}>
             Close polygon
           </button>
         )}
+        {tool === "ledger" && (
+          <p className="hint">Ledger: click two ends, or press and drag along the house wall. Then drag endpoints or Delete.</p>
+        )}
+        {(tool === "stairs" || tool === "existingStairs") && (
+          <p className="hint">Stairs: click once to place. Type rise and width on the right. One object — not parts.</p>
+        )}
+      </section>
+
+      <section>
+        <h2>Mark on photo (optional convert)</h2>
+        <p className="hint">
+          Optional. Click-to-convert can still create a house wall, ledger line, or existing stairs from the photo.
+          Not an image editor. No auto-extract.
+        </p>
+        <div className="tool-grid">
+          {CONVERT_TOOLS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={tool === t.id ? "active" : ""}
+              title={t.hint}
+              onClick={() => setTool(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </section>
 
       <section>

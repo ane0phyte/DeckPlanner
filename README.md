@@ -32,8 +32,9 @@ npm run build
 
 1. **Photo** — load one overhead image. The floating deck stays in the picture; do not convert it.
 2. **Set scale** — tool *Set scale*, click two points on a known length, type feet-inches (`12-0` or `10' 6"`).
-3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close.
-4. **Ledger** — place a ledger object (or convert a house-wall line). Fill needs outline **+ ledger**. Joist direction alone is not enough.
+3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close. Click a vertex or point to select it (yellow ring), then drag or **Delete** / Backspace. The toolbar **Delete** control removes the selected point, vertex, or the whole outline. Undo covers move and delete.
+4. **Ledger** — toolbar or left **Ledger** tool. Two clicks or click-drag along the house. This creates a ledger object (size, band/rim, flashing, fasteners), not only a house line. Optional: convert a house-wall line. Fill needs outline **+ ledger**.
+4b. **Stairs** — toolbar or left **Stairs** (reused / existing). Click once to place. Type rise and width. Drag or Delete after. Optional: click-to-convert existing stairs from the photo.
 5. **Decking** — type product name, gap, and max joist spacing. Set joist and decking directions **before Fill**.
 6. **Heights** — type deck, grade, door sill, stair rise. Grade is one height; the site is treated as flat. No door object.
 7. **Fill** — places first posts and beams (you do not place them first), then joists, boards, blocking, rim, plus:

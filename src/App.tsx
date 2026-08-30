@@ -6,8 +6,9 @@ import { RightPanel } from "./ui/RightPanel";
 import { PlanView } from "./canvas/PlanView";
 import { inchesPerUnit } from "./model/project";
 import { formatInches } from "./units/length";
+import { selectionLabel } from "./edit/handles";
 function Shell() {
-  const { project, tool, undo, redo, deleteSelected, finishDraft, cancelDraft } = useStore();
+  const { project, tool, undo, redo, deleteSelected, finishDraft, cancelDraft, selection } = useStore();
   const iPerU = inchesPerUnit(project);
 
   useEffect(() => {
@@ -23,7 +24,10 @@ function Shell() {
         e.preventDefault();
         redo();
       }
-      if (e.key === "Delete" || e.key === "Backspace") deleteSelected();
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        deleteSelected();
+      }
       if (e.key === "Enter") finishDraft();
       if (e.key === "Escape") cancelDraft();
     };
@@ -54,7 +58,8 @@ function Shell() {
             </span>
             <span>{project.flags.filter((f) => f.severity === "violation").length} violations</span>
             <span className="muted">
-              Existing floating deck is backdrop only. Fill needs outline + ledger. Snap starts off.
+              {selectionLabel(selection, project) ??
+                "Click a point or vertex to select it, then drag or Delete. Existing floating deck is backdrop only."}
             </span>
           </footer>
         </div>
