@@ -180,16 +180,6 @@ button.select-cta {
   font-weight: 600;
 }
 
-.stair-place {
-  margin-top: 0.4rem;
-}
-
-.stair-kind {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.3rem;
-  margin-top: 0.3rem;
-}
 
 .field {
   display: flex;

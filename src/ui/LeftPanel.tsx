@@ -11,11 +11,9 @@ const PLACE_TOOLS: { id: Tool; label: string; hint: string }[] = [
 
 const CONVERT_TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: "houseWall", label: "House wall", hint: "Click-to-convert a wall line. Optional — you can draw a ledger directly." },
-  { id: "existingStairs", label: "Existing stairs (photo)", hint: "Click-to-convert stairs in the photo." },
   { id: "post", label: "Post", hint: "Click. XY only." },
   { id: "beam", label: "Beam (drop)", hint: "Two clicks. Diagonals allowed when you place them." },
   { id: "joist", label: "Joist", hint: "Two clicks." },
-  { id: "board", label: "Board in photo", hint: "Click-to-convert visible boards." },
   { id: "breaker", label: "Breaker board", hint: "Seam. Pick doubled joists vs blocking." },
   { id: "blocking", label: "Blocking", hint: "Two clicks." },
   { id: "rim", label: "Rim", hint: "Two clicks." },
@@ -65,32 +63,14 @@ export function LeftPanel() {
         >
           Ledger — click or drag along house
         </button>
-        <div className="stair-place">
-          <button
-            type="button"
-            className={`wide ${tool === "stairs" || tool === "existingStairs" ? "active" : ""}`}
-            title="Click once to place. Then type rise and width. Drag or Delete after."
-            onClick={() => setTool("stairs")}
-          >
-            Stairs — click to place
-          </button>
-          <div className="stair-kind">
-            <button
-              type="button"
-              className={tool === "stairs" ? "active" : ""}
-              onClick={() => setTool("stairs")}
-            >
-              Reused
-            </button>
-            <button
-              type="button"
-              className={tool === "existingStairs" ? "active" : ""}
-              onClick={() => setTool("existingStairs")}
-            >
-              Existing
-            </button>
-          </div>
-        </div>
+        <button
+          type="button"
+          className={`wide ${tool === "box" ? "active" : ""}`}
+          title="Click-drag a rectangle on the photo. Then move, resize, or rotate. Set type (stairs or board) on the right."
+          onClick={() => setTool("box")}
+        >
+          Draw box — then set type
+        </button>
         {(tool === "outline" || tool === "nodigZone") && (
           <button type="button" className="wide" onClick={finishDraft}>
             Close polygon
@@ -99,16 +79,18 @@ export function LeftPanel() {
         {tool === "ledger" && (
           <p className="hint">Ledger: click two ends, or press and drag along the house wall. Then drag endpoints or Delete.</p>
         )}
-        {(tool === "stairs" || tool === "existingStairs") && (
-          <p className="hint">Stairs: click once to place. Type rise and width on the right. One object — not parts.</p>
+        {tool === "box" && (
+          <p className="hint">
+            Draw a rectangle over the photo. After it is placed, drag corners to resize, the extra knob to rotate, then set Type (stairs or board) on the right.
+          </p>
         )}
       </section>
 
       <section>
         <h2>Mark on photo (optional convert)</h2>
         <p className="hint">
-          Optional. Click-to-convert can still create a house wall, ledger line, or existing stairs from the photo.
-          Not an image editor. No auto-extract.
+          Optional. Click-to-convert can still create a house wall or ledger line from the photo.
+          Stairs and boards use Draw box, then Type on the right. Not an image editor. No auto-extract.
         </p>
         <div className="tool-grid">
           {CONVERT_TOOLS.map((t) => (
