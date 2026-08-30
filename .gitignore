@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+*.log
+.DS_Store
+
+# Runtime data store (created at runtime)
+data/decks.json
+
+# Vite
+client/.vite/
+
+# TypeScript build info
+*.tsbuildinfo

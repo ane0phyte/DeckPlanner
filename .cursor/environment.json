@@ -1,0 +1,20 @@
+{
+  "name": "DeckPlanner",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "server",
+      "command": "npm run dev:server",
+      "description": "DeckPlanner REST API (Express) on http://localhost:3001"
+    },
+    {
+      "name": "client",
+      "command": "npm run dev:client",
+      "description": "DeckPlanner web UI (Vite dev server) on http://localhost:5173"
+    }
+  ],
+  "ports": [
+    { "name": "server", "port": 3001 },
+    { "name": "client", "port": 5173 }
+  ]
+}
