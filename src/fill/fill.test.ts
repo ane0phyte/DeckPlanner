@@ -3,6 +3,8 @@ import { emptyProject } from "../model/project";
 import { createUserObject, fillProject } from "./fill";
 import { evaluateProject } from "../irc/checks";
 import { ftIn } from "../units/length";
+import { pointInPolygon } from "../geom/polygon";
+import type { PlannerObject, Point } from "../model/types";
 
 function baseProject() {
   const p = emptyProject();
@@ -135,4 +137,118 @@ describe("Fill", () => {
     );
     void ftIn;
   });
+
+  it("does not emit posts, beams, or joists whose midpoints lie outside a non-rectangle outline", () => {
+    const p = baseProject();
+    const poly: Point[] = [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 200, y: 160 },
+      { x: 160, y: 160 },
+      { x: 160, y: 40 },
+      { x: 40, y: 40 },
+      { x: 40, y: 160 },
+      { x: 0, y: 160 },
+    ];
+    p.objects = [
+      createUserObject("outline", poly)!,
+      createUserObject("ledger", [
+        { x: 0, y: 0 },
+        { x: 200, y: 0 },
+      ])!,
+    ];
+    const r = fillProject(p);
+    expect(r.error).toBeNull();
+    const fillMembers = r.project.objects.filter(
+      (o) => o.source === "fill" && (o.type === "post" || o.type === "beam" || o.type === "joist"),
+    );
+    expect(fillMembers.filter((o) => o.type === "post").length).toBeGreaterThan(0);
+    expect(fillMembers.filter((o) => o.type === "beam").length).toBeGreaterThan(0);
+    expect(fillMembers.filter((o) => o.type === "joist").length).toBeGreaterThan(0);
+    for (const o of fillMembers) {
+      const mid = memberMid(o);
+      expect(pointInPolygon(mid, poly), `${o.type} midpoint outside outline`).toBe(true);
+    }
+    const hole = { x: 100, y: 100 };
+    expect(pointInPolygon(hole, poly)).toBe(false);
+    expect(
+      r.project.objects.some((o) => {
+        if (o.type !== "beam" && o.type !== "joist") return false;
+        const mid = memberMid(o);
+        return Math.abs(mid.x - 100) < 8 && Math.abs(mid.y - 100) < 8;
+      }),
+    ).toBe(false);
+  });
+
+  it("fills the pool-deck dogleg outline without midpoints outside the polygon", () => {
+    const p = emptyProject();
+    p.scale = { a: { x: 689.86, y: 1252.9 }, b: { x: 753.98, y: 1599.9 }, knownLengthIn: 48 };
+    p.settings.decking.productName = "Trex";
+    p.settings.decking.category = "composite-other";
+    p.settings.decking.gapIn = 0.1875;
+    p.settings.decking.maxJoistSpacingIn = 15;
+    p.settings.decking.boardWidthIn = 5.5;
+    p.settings.joistAngleDeg = 90;
+    p.settings.deckingAngleDeg = 0;
+    p.settings.beamFillAngleDeg = null;
+    const poly: Point[] = [
+      { x: 728.3, y: 1203.93 },
+      { x: 576.41, y: 803.11 },
+      { x: 590.29, y: 145.65 },
+      { x: 3051.88, y: 187.15 },
+      { x: 3043.29, y: 924.02 },
+      { x: 2563.57, y: 1530.0 },
+      { x: 2286.61, y: 1733.11 },
+      { x: 1834.24, y: 1400.76 },
+      { x: 1252.63, y: 1165.34 },
+    ];
+    p.objects = [
+      createUserObject("outline", poly)!,
+      createUserObject("ledger", [
+        { x: 590.9, y: 145.4 },
+        { x: 3056.1, y: 188.1 },
+      ])!,
+    ];
+    const r = fillProject(p);
+    expect(r.error).toBeNull();
+    const posts = r.project.objects.filter((o) => o.type === "post" && o.source === "fill");
+    const beams = r.project.objects.filter((o) => o.type === "beam" && o.source === "fill");
+    const joists = r.project.objects.filter((o) => o.type === "joist" && o.source === "fill");
+    expect(posts.length).toBeGreaterThan(0);
+    expect(beams.length).toBeGreaterThan(0);
+    expect(joists.length).toBeGreaterThan(2);
+    for (const o of [...posts, ...beams, ...joists]) {
+      expect(pointInPolygon(memberMid(o), poly)).toBe(true);
+    }
+    expect(r.project.flags.some((f) => f.section === "R507.5(1)")).toBe(true);
+  });
+
+  it("keeps no-dig-shifted posts inside the outline", () => {
+    const p = baseProject();
+    const poly: Point[] = [
+      { x: 0, y: 0 },
+      { x: 192, y: 0 },
+      { x: 192, y: 144 },
+      { x: 0, y: 144 },
+    ];
+    const zone = createUserObject("nodigZone", [
+      { x: -20, y: 120 },
+      { x: 40, y: 120 },
+      { x: 40, y: 170 },
+      { x: -20, y: 170 },
+    ])!;
+    p.objects.push(zone);
+    const r = fillProject(p);
+    const posts = r.project.objects.filter((o): o is Extract<PlannerObject, { type: "post" }> => o.type === "post" && o.source === "fill");
+    expect(posts.length).toBeGreaterThan(0);
+    for (const post of posts) {
+      expect(pointInPolygon(post.origin, poly)).toBe(true);
+    }
+  });
 });
+
+function memberMid(o: PlannerObject): Point {
+  if (o.type === "post") return o.origin;
+  if ("a" in o && "b" in o) return { x: (o.a.x + o.b.x) / 2, y: (o.a.y + o.b.y) / 2 };
+  return { x: 0, y: 0 };
+}

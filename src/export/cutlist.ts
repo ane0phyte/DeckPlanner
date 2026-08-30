@@ -171,11 +171,21 @@ export function buildCutList(project: Project): CutList {
   ];
 
   const areaSqFt = projectAreaSqIn(project, iPerU) / 144;
+  const boardW = project.settings.decking.boardWidthIn;
+  const gapIn = project.settings.decking.gapIn ?? 0;
+  const deckingSqFt = boardW > 0 ? areaSqFt * (boardW / (boardW + gapIn)) : areaSqFt;
   const flashLinFt = ledgers.reduce((s, l) => s + (dist(l.a, l.b) * iPerU) / 12, 0);
   const flashCov = project.settings.accessories.flashingCoverageSqFtPerRoll;
   const guardBox = project.settings.accessories.guardLinearFtPerBox;
 
   const accessories: AccessoryRow[] = [
+    {
+      item: "Decking surface (outlined polygon − gaps)",
+      product: project.settings.decking.productName || "(type product name)",
+      layoutAmount: `${deckingSqFt.toFixed(1)} sf`,
+      coverage: `outline ${areaSqFt.toFixed(1)} sf · gap ${gapIn || "0"} in`,
+      rollsOrBoxes: "—",
+    },
     {
       item: "Ledger flashing (area / linear)",
       product: project.settings.flashingProduct || "(type product name)",

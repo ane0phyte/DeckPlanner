@@ -39,8 +39,11 @@ export function parseLengthToInches(raw: string): number | null {
   const text = raw.trim().toLowerCase().replace(/inches?|in\.?/g, "").replace(/"/g, "").trim();
   if (!text) return null;
 
+  const feetWord = text.match(/^(-?\d+(?:\.\d+)?)\s*(?:feet|foot|ft|')$/);
+  if (feetWord) return Number(feetWord[1]) * 12;
+
   const ftIn = text.match(
-    /^(-?\d+(?:\.\d+)?)\s*(?:ft|')\s*[-–]?\s*(.+)$/,
+    /^(-?\d+(?:\.\d+)?)\s*(?:ft|feet|foot|')\s*[-–]?\s*(.+)$/,
   );
   if (ftIn) {
     const inches = parseInchToken(ftIn[2]);
@@ -53,10 +56,23 @@ export function parseLengthToInches(raw: string): number | null {
     if (inches != null) return Number(dashed[1]) * 12 + inches;
   }
 
-  const onlyFt = text.match(/^(-?\d+(?:\.\d+)?)\s*(?:ft|')$/);
-  if (onlyFt) return Number(onlyFt[1]) * 12;
-
   return parseInchToken(text);
+}
+
+/**
+ * Scale prompt is feet-inches (default 12-0). A bare "4" or "4'" is 4 feet (48 in).
+ * Use 4" or 4 in for four inches.
+ */
+export function parseKnownLengthToInches(raw: string): number | null {
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return null;
+  if (/^\d+(?:\.\d+)?\s*(?:in(?:ches?)?|")$/.test(trimmed)) {
+    return parseLengthToInches(trimmed);
+  }
+  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed) * 12;
+  }
+  return parseLengthToInches(trimmed);
 }
 
 export function ftIn(ft: number, inch = 0): number {
