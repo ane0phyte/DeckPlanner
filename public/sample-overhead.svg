@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+  <rect width="1600" height="1200" fill="#6d8a4e"/>
+  <rect x="0" y="0" width="1600" height="280" fill="#c4b7a2"/>
+  <rect x="40" y="40" width="1520" height="200" fill="#e8ddd0" stroke="#5c5346" stroke-width="4"/>
+  <text x="80" y="160" font-size="42" fill="#5c5346" font-family="Georgia">House</text>
+  <!-- Existing floating deck: PHOTO BACKDROP ONLY -->
+  <rect x="720" y="300" width="420" height="280" fill="#8b6914" opacity="0.85"/>
+  <g stroke="#5a4010" stroke-width="3" opacity="0.5">
+    <path d="M720 340 H1140 M720 380 H1140 M720 420 H1140 M720 460 H1140 M720 500 H1140 M720 540 H1140"/>
+  </g>
+  <text x="780" y="450" font-size="22" fill="#2b1d08">Existing floating deck (backdrop only)</text>
+  <!-- Known 12 ft sidewalk mark -->
+  <rect x="80" y="300" width="288" height="36" fill="#9a958c"/>
+  <text x="80" y="360" font-size="20" fill="#2b1d08">Known 12'-0" sidewalk</text>
+  <!-- Proposed new deck area hint (not an object) -->
+  <rect x="200" y="300" width="480" height="360" fill="none" stroke="#f3ead8" stroke-dasharray="10 8" stroke-width="2"/>
+  <text x="220" y="680" font-size="20" fill="#f3ead8">Suggested new deck area (draw your own polygon)</text>
+</svg>
