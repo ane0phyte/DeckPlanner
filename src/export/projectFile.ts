@@ -1,4 +1,5 @@
 import type { Project } from "../model/types";
+import { migrateProjectObjects } from "../edit/typedBox";
 
 export const PROJECT_FILE_TYPE = {
   description: "Deck Planner project (.deckplanner.json)",
@@ -30,7 +31,7 @@ export async function parseProjectText(text: string): Promise<Project> {
   if (data.version !== 1 || !data.settings || !Array.isArray(data.objects)) {
     throw new Error("Not a Deck Planner v1 project file.");
   }
-  return data;
+  return { ...data, objects: migrateProjectObjects(data.objects) };
 }
 
 export async function readProjectFile(file: File): Promise<Project> {

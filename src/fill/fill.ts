@@ -30,7 +30,6 @@ import {
 } from "../irc/tables";
 import {
   add,
-  angleDeg,
   dist,
   fromAngleDeg,
   lerp,
@@ -50,6 +49,7 @@ import {
   polygonEdges,
 } from "../geom/polygon";
 import { dressedSize } from "../units/length";
+import { createBoxObject } from "../edit/typedBox";
 
 export interface FillResult {
   project: Project;
@@ -620,16 +620,8 @@ export function createUserObject(
       return { ...common, type, a: points[0], b: points[1] };
     case "stairs":
     case "existingStairs":
-      if (!points[0]) return null;
-      return {
-        ...common,
-        type,
-        origin: points[0],
-        angleDeg: points[1] ? angleDeg(sub(points[1], points[0])) : 0,
-        widthIn: 36,
-        riseIn: null,
-        lengthIn: points[1] ? dist(points[0], points[1]) : 48,
-      };
+      if (points.length < 2) return null;
+      return createBoxObject("stairs", points[0], points[1]);
     case "post":
       if (!points[0]) return null;
       return {

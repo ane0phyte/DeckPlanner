@@ -8,6 +8,8 @@ import {
   handleKey,
   type Selection,
 } from "../edit/handles";
+import { getOrientedBox } from "../edit/typedBox";
+import { boxCorners } from "../geom/box";
 
 export interface View {
   panX: number;
@@ -120,12 +122,28 @@ export function drawPlanToCanvas(
   }
 
   if (opts.draftPoints.length) {
-    ctx.strokeStyle = "#8ec8ff";
-    ctx.lineWidth = 2 / view.scale;
-    ctx.beginPath();
-    ctx.moveTo(opts.draftPoints[0].x, opts.draftPoints[0].y);
-    for (const p of opts.draftPoints.slice(1)) ctx.lineTo(p.x, p.y);
-    ctx.stroke();
+    if (opts.tool === "box" && opts.draftPoints.length >= 2) {
+      const a = opts.draftPoints[0];
+      const b = opts.draftPoints[1];
+      ctx.save();
+      ctx.strokeStyle = "#8ec8ff";
+      ctx.setLineDash([6 / view.scale, 4 / view.scale]);
+      ctx.lineWidth = 2 / view.scale;
+      ctx.strokeRect(
+        Math.min(a.x, b.x),
+        Math.min(a.y, b.y),
+        Math.abs(b.x - a.x),
+        Math.abs(b.y - a.y),
+      );
+      ctx.restore();
+    } else {
+      ctx.strokeStyle = "#8ec8ff";
+      ctx.lineWidth = 2 / view.scale;
+      ctx.beginPath();
+      ctx.moveTo(opts.draftPoints[0].x, opts.draftPoints[0].y);
+      for (const p of opts.draftPoints.slice(1)) ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    }
     for (const p of opts.draftPoints) {
       ctx.fillStyle = "#8ec8ff";
       ctx.beginPath();
@@ -185,7 +203,9 @@ export function getCachedPhoto(dataUrl: string): HTMLImageElement | undefined {
 function layerOn(o: PlannerObject, layers: Project["settings"]["layers"]): boolean {
   if (o.type === "nodigZone" || o.type === "nodigPoint") return layers.nodig;
   if (o.type === "guard") return layers.railings;
-  if (o.type === "outline" || o.type === "houseWall" || o.type === "existingStairs") return layers.photo || layers.framing;
+  if (o.type === "outline" || o.type === "houseWall" || o.type === "stairs" || o.type === "existingStairs") {
+    return layers.photo || layers.framing;
+  }
   return layers.framing;
 }
 
@@ -227,6 +247,26 @@ function drawObject(
     case "rim":
     case "guard":
     case "flashing": {
+      if (o.type === "board") {
+        const box = getOrientedBox(o);
+        if (box) {
+          ctx.save();
+          ctx.translate(box.origin.x, box.origin.y);
+          ctx.rotate((box.angleDeg * Math.PI) / 180);
+          ctx.globalAlpha = selected ? 0.5 : 0.32;
+          ctx.fillRect(-box.length / 2, -box.width / 2, box.length, box.width);
+          ctx.globalAlpha = 1;
+          ctx.strokeRect(-box.length / 2, -box.width / 2, box.length, box.width);
+          ctx.restore();
+          if (labels) {
+            ctx.globalAlpha = 1;
+            ctx.font = exportMode ? "11px system-ui" : "12px system-ui";
+            ctx.fillStyle = exportMode ? "#1c1916" : "#f3ead8";
+            ctx.fillText(o.label || "Board", box.origin.x + 6, box.origin.y - 6);
+          }
+          break;
+        }
+      }
       ctx.beginPath();
       ctx.moveTo(o.a.x, o.a.y);
       ctx.lineTo(o.b.x, o.b.y);
@@ -269,20 +309,19 @@ function drawObject(
     }
     case "stairs":
     case "existingStairs": {
+      const box = getOrientedBox(o);
+      if (!box) break;
       ctx.save();
-      ctx.translate(o.origin.x, o.origin.y);
-      ctx.rotate((o.angleDeg * Math.PI) / 180);
-      const u = iPerU ?? 1;
-      const w = (o.widthIn ?? 36) / u;
-      const len = o.lengthIn / u;
-      ctx.globalAlpha = selected ? 0.45 : 0.25;
-      ctx.fillRect(0, -w / 2, len, w);
+      ctx.translate(box.origin.x, box.origin.y);
+      ctx.rotate((box.angleDeg * Math.PI) / 180);
+      ctx.globalAlpha = selected ? 0.45 : 0.28;
+      ctx.fillRect(-box.length / 2, -box.width / 2, box.length, box.width);
       ctx.globalAlpha = 1;
-      ctx.strokeRect(0, -w / 2, len, w);
+      ctx.strokeRect(-box.length / 2, -box.width / 2, box.length, box.width);
       ctx.restore();
       if (labels) {
         ctx.fillStyle = exportMode ? "#1c1916" : "#f3ead8";
-        ctx.fillText(o.type === "existingStairs" ? "Existing stairs" : "Stairs (reused)", o.origin.x + 6, o.origin.y - 6);
+        ctx.fillText(o.label || "Stairs", box.origin.x + 6, box.origin.y - 6);
       }
       break;
     }
@@ -338,8 +377,10 @@ export function objectPoints(o: PlannerObject): Point[] {
     case "lateralDevice":
       return [o.origin];
     case "stairs":
-    case "existingStairs":
-      return [o.origin];
+    case "existingStairs": {
+      const box = getOrientedBox(o);
+      return box ? boxCorners(box) : [o.origin];
+    }
     default:
       return "a" in o && "b" in o ? [o.a, o.b] : [];
   }
@@ -367,6 +408,13 @@ function drawHandles(
     ctx.lineWidth = 1.5 * inv;
     ctx.fill();
     ctx.stroke();
+    if (h.kind === "rotate") {
+      ctx.beginPath();
+      ctx.strokeStyle = selected ? "#ffe08a" : "#8ec8ff";
+      ctx.lineWidth = 1.5 * inv;
+      ctx.arc(h.point.x, h.point.y, r + 2 * inv, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     if (selected) {
       ctx.beginPath();
       ctx.arc(h.point.x, h.point.y, r + 3 * inv, 0, Math.PI * 2);

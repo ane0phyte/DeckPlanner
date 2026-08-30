@@ -34,7 +34,7 @@ npm run build
 2. **Set scale** — tool *Set scale*, click two points on a known length, type feet-inches (`12-0` or `10' 6"`).
 3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close. After placing, the app returns to **Select**. Click anywhere inside an object’s bounds (yellow highlight). Overlapping objects open a picker (smallest first). Drag or **Delete** / Backspace. **Esc** returns to Select. Undo covers move and delete.
 4. **Ledger** — toolbar or left **Ledger** tool. Two clicks or click-drag along the house. This creates a ledger object (size, band/rim, flashing, fasteners), not only a house line. You do not need click-to-convert. Optional: convert a house-wall line. Fill needs outline **+ ledger**.
-4b. **Stairs** — toolbar or left **Stairs** (reused / existing). Click once to place. Type rise and width. Then Select / drag / Delete like other objects. Optional: click-to-convert existing stairs from the photo.
+4b. **Draw box** — toolbar or left **Draw box**. Click-drag a rectangle (or two clicks). Then move, resize (corners), and rotate (extra knob). Set **Type** on the right: stairs or board. Stair width can default from the box when scale is set; rise is typed. One stair object type. No Existing / Reused / click-to-place stairs / Existing stairs (photo) / Board in photo convert buttons.
 5. **Decking** — type product name, gap, and max joist spacing. Set joist and decking directions **before Fill**.
 6. **Heights** — type deck, grade, door sill, stair rise. Grade is one height; the site is treated as flat. No door object.
 7. **Fill** — places first posts and beams (you do not place them first), then joists, boards, blocking, rim, plus:
@@ -46,6 +46,14 @@ npm run build
 10. **Export** Letter PDF (plan + cut list + elevation) or PNG plan / cut list / elevation.
 
 Snap increment starts **off**. You turn it on and set the increment.
+
+## Locked tools (Anthony leftover-button pass)
+
+**Generic box, then Type:** stairs (one type); board in photo. No dedicated Existing Stairs / Reused / convert-existing-stairs / Board in photo buttons.
+
+**Keep as they are:** Pan; Select; Set scale (two clicks + typed length); New deck outline (polygon); Ledger (click or drag line along house); House wall (line convert); Post (click XY); Beam drop (two-click line, diagonals allowed when placed); Joist (two-click line); Breaker board (seam, then doubled joists vs blocking); Blocking (two-click); Rim (two-click); Guard (place tool; Fill still adds required R321 guards); No-dig zone (polygon); No-dig point (click + typed buffer).
+
+Also: wheel zoom only over the work area; Save / Save As; bounds select + overlap picker. No invented IRC spans.
 
 ## What Fill will not do
 

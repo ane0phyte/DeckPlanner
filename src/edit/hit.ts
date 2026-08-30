@@ -2,6 +2,8 @@ import type { PlannerObject, Point, Project } from "../model/types";
 import { inchesPerUnit } from "../model/project";
 import { dist } from "../geom/vec";
 import { pointInPolygon, polygonArea } from "../geom/polygon";
+import { boxArea, pointInOrientedBox } from "../geom/box";
+import { getOrientedBox } from "./typedBox";
 
 export interface HitCandidate {
   object: PlannerObject;
@@ -11,9 +13,8 @@ export interface HitCandidate {
 export function objectTypeLabel(type: PlannerObject["type"]): string {
   switch (type) {
     case "existingStairs":
-      return "Existing stairs";
     case "stairs":
-      return "Stairs (reused)";
+      return "Stairs";
     case "houseWall":
       return "House wall";
     case "nodigZone":
@@ -55,51 +56,34 @@ export function lineBounds(a: Point, b: Point, pad: number): { min: Point; max: 
   };
 }
 
-function stairsLocal(
-  o: Extract<PlannerObject, { type: "stairs" | "existingStairs" }>,
-  p: Point,
-  iPerU: number | null,
-): { lx: number; ly: number; w: number; len: number } {
-  const u = iPerU ?? 1;
-  const w = (o.widthIn ?? 36) / u;
-  const len = o.lengthIn / u;
-  const rad = (o.angleDeg * Math.PI) / 180;
-  const dx = p.x - o.origin.x;
-  const dy = p.y - o.origin.y;
-  const cos = Math.cos(rad);
-  const sin = Math.sin(rad);
-  return {
-    lx: dx * cos + dy * sin,
-    ly: -dx * sin + dy * cos,
-    w,
-    len,
-  };
-}
-
 export function objectVisible(o: PlannerObject, layers: Project["settings"]["layers"]): boolean {
   if (o.type === "nodigZone" || o.type === "nodigPoint") return layers.nodig;
   if (o.type === "guard") return layers.railings;
-  if (o.type === "outline" || o.type === "houseWall" || o.type === "existingStairs") {
+  if (o.type === "outline" || o.type === "houseWall" || o.type === "stairs" || o.type === "existingStairs") {
     return layers.photo || layers.framing;
   }
   return layers.framing;
 }
 
-export function objectHitArea(o: PlannerObject, iPerU: number | null, pad: number): number {
+export function objectHitArea(o: PlannerObject, _iPerU: number | null, pad: number): number {
   switch (o.type) {
     case "outline":
     case "nodigZone":
       return Math.max(Math.abs(polygonArea(o.points)), 1);
     case "stairs":
     case "existingStairs": {
-      const u = iPerU ?? 1;
-      return Math.max(((o.widthIn ?? 36) / u) * (o.lengthIn / u), 1);
+      const box = getOrientedBox(o);
+      return box ? boxArea(box) : 1;
     }
     case "post":
     case "nodigPoint":
     case "lateralDevice":
       return (pad * 2) ** 2;
     default:
+      if (o.type === "board") {
+        const box = getOrientedBox(o);
+        if (box) return boxArea(box);
+      }
       if ("a" in o && "b" in o) {
         return Math.max(dist(o.a, o.b) * pad * 2, 1);
       }
@@ -110,7 +94,7 @@ export function objectHitArea(o: PlannerObject, iPerU: number | null, pad: numbe
 export function pointHitsObject(
   o: PlannerObject,
   p: Point,
-  iPerU: number | null,
+  _iPerU: number | null,
   pad: number,
 ): boolean {
   switch (o.type) {
@@ -119,14 +103,18 @@ export function pointHitsObject(
       return pointInPolygon(p, o.points);
     case "stairs":
     case "existingStairs": {
-      const { lx, ly, w, len } = stairsLocal(o, p, iPerU);
-      return lx >= -pad && lx <= len + pad && ly >= -w / 2 - pad && ly <= w / 2 + pad;
+      const box = getOrientedBox(o);
+      return box ? pointInOrientedBox(p, box, pad) : false;
     }
     case "post":
     case "nodigPoint":
     case "lateralDevice":
       return dist(p, o.origin) <= pad;
     default:
+      if (o.type === "board") {
+        const ob = getOrientedBox(o);
+        if (ob) return pointInOrientedBox(p, ob, pad);
+      }
       if ("a" in o && "b" in o) {
         const box = lineBounds(o.a, o.b, pad);
         if (pointInBox(p, box.min, box.max)) return true;

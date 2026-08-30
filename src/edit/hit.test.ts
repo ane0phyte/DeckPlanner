@@ -24,10 +24,14 @@ describe("bounds hit-test", () => {
   });
 
   it("selects stairs by clicking inside the stair rectangle", () => {
-    const stairs = createUserObject("existingStairs", [{ x: 10, y: 20 }])!;
+    const stairs = createUserObject("stairs", [
+      { x: 0, y: 0 },
+      { x: 80, y: 40 },
+    ])!;
     const p = projectWith([stairs]);
-    const hit = hitTest(p, { x: 30, y: 20 }, 1);
-    expect(hit?.type).toBe("existingStairs");
+    const hit = hitTest(p, { x: 40, y: 20 }, 1);
+    expect(hit?.type).toBe("stairs");
+    expect(pointHitsObject(stairs, { x: 200, y: 20 }, null, 8)).toBe(false);
   });
 
   it("selects a ledger by clicking near the line, not only on the stroke", () => {
@@ -47,11 +51,14 @@ describe("bounds hit-test", () => {
       { x: 200, y: 160 },
       { x: 0, y: 160 },
     ])!;
-    const stairs = createUserObject("existingStairs", [{ x: 20, y: 40 }])!;
+    const stairs = createUserObject("stairs", [
+      { x: 20, y: 20 },
+      { x: 80, y: 60 },
+    ])!;
     const p = projectWith([outline, stairs]);
     const hits = hitTestAll(p, { x: 40, y: 40 }, 1);
     expect(hits.length).toBeGreaterThanOrEqual(2);
-    expect(hits[0].object.type).toBe("existingStairs");
+    expect(hits[0].object.type).toBe("stairs");
     expect(hits.map((h) => h.object.type)).toContain("outline");
   });
 

@@ -30,8 +30,7 @@ import {
 
 const TOOL_HINTS: Partial<Record<string, string>> = {
   ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
-  stairs: "Stairs — click once to place. Then Select is on so you can click, drag, or Delete.",
-  existingStairs: "Existing stairs — click once to place. Esc or Select to click objects.",
+  box: "Draw box — click-drag a rectangle, then move, resize, or rotate. Set type (stairs or board) on the right.",
   outline: "Outline — click corners. Close / Enter when done. Esc or Select to click objects.",
   nodigZone: "No-dig zone — click corners, then Close. Esc or Select to click objects.",
   scale: "Scale — click two points, type a known length. Esc or Select to click objects.",
@@ -39,7 +38,6 @@ const TOOL_HINTS: Partial<Record<string, string>> = {
   post: "Post — click to place. Then Select so you can click it.",
   beam: "Beam — two clicks. Esc or Select to click objects.",
   joist: "Joist — two clicks. Esc or Select to click objects.",
-  board: "Board — two clicks. Esc or Select to click objects.",
   pan: "Pan — drag the photo. Esc or Select to click objects.",
 };
 
@@ -73,7 +71,7 @@ export function PlanView() {
     y: number;
   } | null>(null);
   const drag = useRef<{
-    mode: "pan" | "move-object" | "move-handle" | "draw-line";
+    mode: "pan" | "move-object" | "move-handle" | "draw-line" | "draw-box";
     last: Point;
     start?: Point;
     id?: string;
@@ -178,6 +176,17 @@ export function PlanView() {
       return;
     }
 
+    if (tool === "box") {
+      setPicker(null);
+      if (draftPoints.length === 0) {
+        addDraftPoint(p);
+        drag.current = { mode: "draw-box", last: applySnap(p), start: applySnap(p), moved: false };
+      } else {
+        addDraftPoint(p);
+      }
+      return;
+    }
+
     if (tool === "ledger" || tool === "houseWall" || tool === "beam" || tool === "joist" || tool === "board" || tool === "guard" || tool === "rim" || tool === "breaker" || tool === "blocking") {
       setPicker(null);
       if (draftPoints.length === 0) {
@@ -249,7 +258,7 @@ export function PlanView() {
       return;
     }
 
-    if (drag.current.mode === "draw-line") {
+    if (drag.current.mode === "draw-line" || drag.current.mode === "draw-box") {
       setDraftPoint(1, p);
       return;
     }
@@ -261,7 +270,7 @@ export function PlanView() {
   }
 
   function onPointerUp() {
-    if (drag.current?.mode === "draw-line") {
+    if (drag.current?.mode === "draw-line" || drag.current?.mode === "draw-box") {
       if (drag.current.moved) completeLine(drag.current.last, drag.current.start);
       drag.current = null;
       return;

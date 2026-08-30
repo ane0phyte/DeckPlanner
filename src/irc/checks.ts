@@ -2,6 +2,7 @@ import { dressedSize, formatInches } from "../units/length";
 import { dist } from "../geom/vec";
 import type { IrcFlag, PlannerObject, Project } from "../model/types";
 import { findByType, inchesPerUnit } from "../model/project";
+import { defaultWidthIn } from "../edit/typedBox";
 import {
   GUARD_HEIGHT_IN,
   GUARD_TRIGGER_HEIGHT_IN,
@@ -297,10 +298,10 @@ export function evaluateProject(project: Project): IrcFlag[] {
   }
 
   for (const s of findByType(project, "stairs")) {
-    checkStairs(s, flags);
+    checkStairs(s, flags, iPerU);
   }
   for (const s of findByType(project, "existingStairs")) {
-    checkStairs(s, flags);
+    checkStairs(s, flags, iPerU);
   }
 
   if (project.settings.decking.productName.trim() === "" || project.settings.decking.gapIn == null || project.settings.decking.maxJoistSpacingIn == null) {
@@ -327,12 +328,13 @@ export function evaluateProject(project: Project): IrcFlag[] {
   return uniqueFlags(flags);
 }
 
-function checkStairs(s: PlannerObject, flags: IrcFlag[]): void {
+function checkStairs(s: PlannerObject, flags: IrcFlag[], iPerU: number | null): void {
   if (s.type !== "stairs" && s.type !== "existingStairs") return;
-  if (s.widthIn != null) {
-    if (s.widthIn + 1e-6 < STAIR_CLEAR_WIDTH_IN) {
+  const width = defaultWidthIn(s, iPerU);
+  if (width != null) {
+    if (width + 1e-6 < STAIR_CLEAR_WIDTH_IN) {
       flags.push(
-        flag("violation", "R318.7.1", `Stair width ${formatInches(s.widthIn)} is less than 36 in clear.`, [s.id]),
+        flag("violation", "R318.7.1", `Stair width ${formatInches(width)} is less than 36 in clear.`, [s.id]),
       );
     }
   }

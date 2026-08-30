@@ -1,13 +1,17 @@
 import type { PlannerObject, Point, Project } from "../model/types";
 import { dist } from "../geom/vec";
 import { polygonClosed } from "../geom/polygon";
+import { boxCorners, resizeBoxCorner, rotateBoxToward, rotateHandlePoint, translateBox } from "../geom/box";
+import { getOrientedBox, setOrientedBox } from "./typedBox";
 
 export type Handle =
   | { kind: "vertex"; objectId: string; index: number; point: Point }
   | { kind: "endpoint"; objectId: string; end: "a" | "b"; point: Point }
   | { kind: "origin"; objectId: string; point: Point }
   | { kind: "scale"; end: "a" | "b"; point: Point }
-  | { kind: "draft"; index: number; point: Point };
+  | { kind: "draft"; index: number; point: Point }
+  | { kind: "box-corner"; objectId: string; index: number; point: Point }
+  | { kind: "rotate"; objectId: string; point: Point };
 
 export type Selection =
   | Handle
@@ -19,6 +23,8 @@ export function handleKey(h: Selection): string {
   if (h.kind === "endpoint") return `endpoint:${h.objectId}:${h.end}`;
   if (h.kind === "origin") return `origin:${h.objectId}`;
   if (h.kind === "scale") return `scale:${h.end}`;
+  if (h.kind === "box-corner") return `box-corner:${h.objectId}:${h.index}`;
+  if (h.kind === "rotate") return `rotate:${h.objectId}`;
   return `draft:${h.index}`;
 }
 
@@ -42,7 +48,6 @@ export function collectHandles(
       o.type === "houseWall" ||
       o.type === "ledger" ||
       o.type === "stairs" ||
-      o.type === "existingStairs" ||
       o.source === "user" ||
       o.source === "convert";
     if (always || selectedIds.includes(o.id)) handles.push(...objectHandles(o));
@@ -70,9 +75,28 @@ export function objectHandles(o: PlannerObject): Handle[] {
     case "post":
     case "nodigPoint":
     case "lateralDevice":
+      return [{ kind: "origin", objectId: o.id, point: o.origin }];
     case "stairs":
     case "existingStairs":
-      return [{ kind: "origin", objectId: o.id, point: o.origin }];
+    case "board": {
+      const box = getOrientedBox(o);
+      if (box) {
+        const corners = boxCorners(box).map((point, index) => ({
+          kind: "box-corner" as const,
+          objectId: o.id,
+          index,
+          point,
+        }));
+        return [...corners, { kind: "rotate", objectId: o.id, point: rotateHandlePoint(box) }];
+      }
+      if (o.type === "board" && "a" in o && "b" in o) {
+        return [
+          { kind: "endpoint", objectId: o.id, end: "a", point: o.a },
+          { kind: "endpoint", objectId: o.id, end: "b", point: o.b },
+        ];
+      }
+      return [];
+    }
     default:
       if ("a" in o && "b" in o) {
         return [
@@ -123,6 +147,14 @@ export function moveHandle(project: Project, handle: Handle, to: Point): Project
       if (handle.kind === "origin" && o.id === handle.objectId && "origin" in o) {
         return { ...o, origin: to };
       }
+      if ((handle.kind === "box-corner" || handle.kind === "rotate") && o.id === handle.objectId) {
+        const box = getOrientedBox(o);
+        if (!box) return o;
+        if (handle.kind === "rotate") {
+          return setOrientedBox(o, rotateBoxToward(box, to));
+        }
+        return setOrientedBox(o, resizeBoxCorner(box, handle.index, to));
+      }
       return o;
     }),
   };
@@ -137,7 +169,9 @@ export function translateObject(project: Project, objectId: string, delta: Point
     ...project,
     objects: project.objects.map((o) => {
       if (o.id !== objectId) return o;
-      if ("origin" in o) return { ...o, origin: { x: o.origin.x + delta.x, y: o.origin.y + delta.y } };
+      const box = getOrientedBox(o);
+      if (box) return setOrientedBox(o, translateBox(box, delta));
+      if ("origin" in o && o.origin) return { ...o, origin: { x: o.origin.x + delta.x, y: o.origin.y + delta.y } };
       if ("a" in o && "b" in o) {
         return {
           ...o,
@@ -183,7 +217,13 @@ export function deleteSelection(
   if (selection.kind === "scale") {
     return { project: { ...project, scale: null }, clearedSelection: true };
   }
-  if (selection.kind === "object" || selection.kind === "origin" || selection.kind === "endpoint") {
+  if (
+    selection.kind === "object" ||
+    selection.kind === "origin" ||
+    selection.kind === "endpoint" ||
+    selection.kind === "box-corner" ||
+    selection.kind === "rotate"
+  ) {
     const id = selection.kind === "object" ? selection.objectId : selection.objectId;
     return {
       project: { ...project, objects: project.objects.filter((o) => o.id !== id) },
@@ -229,6 +269,12 @@ export function selectionLabel(selection: Selection | null, project: Project): s
     const o = project.objects.find((x) => x.id === selection.objectId);
     return `${o?.type ?? "point"} — drag to move, Delete to remove`;
   }
+  if (selection.kind === "box-corner") {
+    return `Resize — drag a corner. Rotate handle is the extra knob. Delete removes the box.`;
+  }
+  if (selection.kind === "rotate") {
+    return `Rotate — drag to turn the box. Delete removes it.`;
+  }
   const o = project.objects.find((x) => x.id === selection.objectId);
   return `${o?.type ?? "object"} — drag to move, Delete to remove`;
 }
@@ -240,6 +286,7 @@ export function deleteButtonLabel(selection: Selection | null): string {
   if (selection.kind === "scale") return "Delete scale point";
   if (selection.kind === "origin") return "Delete point";
   if (selection.kind === "endpoint") return "Delete line";
+  if (selection.kind === "box-corner" || selection.kind === "rotate") return "Delete object";
   if (selection.kind === "object") return "Delete object";
   return "Delete";
 }
