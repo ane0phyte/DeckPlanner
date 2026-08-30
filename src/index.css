@@ -287,13 +287,18 @@ button.select-cta {
 .hit-picker {
   position: absolute;
   z-index: 6;
-  min-width: 196px;
-  max-width: 260px;
+  min-width: 210px;
+  max-width: 280px;
   background: #241e14;
   border: 1px solid var(--accent-2);
   border-radius: 8px;
   padding: 0.4rem;
   box-shadow: 0 10px 28px #0009;
+}
+
+.hit-picker-list {
+  max-height: 220px;
+  overflow: auto;
 }
 
 .hit-picker h3 {

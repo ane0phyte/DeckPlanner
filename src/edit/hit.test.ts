@@ -55,6 +55,15 @@ describe("bounds hit-test", () => {
     expect(hits.map((h) => h.object.type)).toContain("outline");
   });
 
+  it("selects a board by clicking inside its bounds, not only the stroke", () => {
+    const board = createUserObject("board", [
+      { x: 0, y: 40 },
+      { x: 100, y: 40 },
+    ])!;
+    const p = projectWith([board]);
+    expect(hitTest(p, { x: 50, y: 48 }, 1)?.type).toBe("board");
+  });
+
   it("lists overlapping hits smallest-first for the picker", () => {
     const outline = createUserObject("outline", [
       { x: 0, y: 0 },

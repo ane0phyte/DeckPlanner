@@ -273,6 +273,14 @@ export function PlanView() {
     if (tool === "outline" || tool === "nodigZone") finishDraft();
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPicker(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function pickObject(id: string) {
     select([id]);
     setPicker(null);
@@ -310,19 +318,26 @@ export function PlanView() {
       {picker && (
         <div className="hit-picker" style={{ left: picker.x, top: picker.y }}>
           <h3>Which object?</h3>
-          <p className="hint">Smallest is listed first. Click the one you meant.</p>
-          {picker.hits.map((h, i) => (
-            <button
-              key={h.object.id}
-              type="button"
-              className={i === 0 ? "preferred" : ""}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => pickObject(h.object.id)}
-            >
-              <strong>{objectDisplayName(h.object)}</strong>
-              <span>{objectTypeLabel(h.object.type)}</span>
-            </button>
-          ))}
+          <p className="hint">
+            {picker.hits.length} overlap — smallest first. Click the one you meant.
+          </p>
+          <div className="hit-picker-list">
+            {picker.hits.map((h, i) => (
+              <button
+                key={h.object.id}
+                type="button"
+                className={i === 0 ? "preferred" : ""}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => pickObject(h.object.id)}
+              >
+                <strong>{objectDisplayName(h.object)}</strong>
+                <span>
+                  {objectTypeLabel(h.object.type)}
+                  {i === 0 ? " · smallest" : ""}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
