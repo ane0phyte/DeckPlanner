@@ -297,13 +297,24 @@ function drawObject(
         ctx.fill();
         ctx.globalAlpha = 1;
       }
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, o.type === "post" ? 6 : 4, 0, Math.PI * 2);
-      ctx.fill();
-      if (labels) {
-        ctx.font = exportMode ? "11px system-ui" : "12px system-ui";
-        ctx.fillStyle = exportMode ? "#1c1916" : "#f3ead8";
-        ctx.fillText(o.label, p.x + 8, p.y - 6);
+      if (o.type === "post") {
+        const worldHalf = ((o.actualWidthIn || 5.5) / 2) / (iPerU || 1);
+        const half = Math.max(28, worldHalf);
+        ctx.lineWidth = exportMode ? 3 : 2.5;
+        ctx.fillRect(p.x - half, p.y - half, half * 2, half * 2);
+        ctx.strokeRect(p.x - half, p.y - half, half * 2, half * 2);
+        ctx.font = exportMode ? "12px system-ui" : "14px system-ui";
+        ctx.fillStyle = exportMode ? "#1c1916" : "#ffe08a";
+        ctx.fillText(o.label, p.x + half + 4, p.y - 4);
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        if (labels) {
+          ctx.font = exportMode ? "11px system-ui" : "12px system-ui";
+          ctx.fillStyle = exportMode ? "#1c1916" : "#f3ead8";
+          ctx.fillText(o.label, p.x + 8, p.y - 6);
+        }
       }
       break;
     }

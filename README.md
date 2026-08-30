@@ -55,14 +55,16 @@ Snap increment starts **off**. You turn it on and set the increment.
 
 Also: wheel zoom only over the work area; Save / Save As; bounds select + overlap picker. No invented IRC spans.
 
-Fill clips posts, beams, joists, and boards to the **outline polygon** (every inside run; it does not fill the bounding box or bridge voids / water). Orthogonal only. User-placed diagonal beams are kept. Missing Table R507.5(1) cells are flagged; members are still placed. No-dig shifts posts along the beam **inside** the outline. Cut list reports beam/joist counts and Trex / decking **square footage of the outlined polygon minus gaps**.
+Fill clips posts, beams, joists, and boards to the **outline polygon** (every inside run; it does not fill the bounding box or bridge voids / water). First drop-beam line is **~10 ft from the ledger** (parallel to it when `beamFillAngleDeg` is null — perpendicular to joists). Posts are **6x6** with ground-contact treatment (4x4 only if you type a short height from Table R507.4); every beam has posts at both ends and ≤8 ft o.c. Rim is **not** a load-bearing beam. When an orthogonal grid cannot keep every joist bay and joist cantilever inside Table R507.6 while keeping post-to-post ≤8 ft, Fill places **diagonal drop beams** and their posts (dogleg / pool V). User-placed diagonals are kept; Fill supplies the rest. Missing Table R507.5(1) cells are flagged; members are still placed (2-ply 2x8 is a label only). No-dig shifts intermediate posts along the beam **inside** the outline (end posts stay on the ends and flag if they hit no-dig). A house-band no-dig does not skip the 10 ft line. Trex / decking boards **split at every breaker seam**. Cut list reports every post XY, beam/joist lengths, and decking **square footage of the outlined polygon minus gaps** plus piece lengths.
 
 ## What Fill will not do
 
-- Create stairs or diagonal beams (you may place diagonal beams yourself)
+- Create stairs
 - Invent spans, snow, frost, footings, SKUs, or clearance gaps
+- Invent Table R507.5(1) beam cells
 - Use manufacturer catalogs
 - Default to flush beams (drop beams only: joists on **top** of the beam)
+- Treat rim as a beam or skip the 10 ft post line because of a ~2 ft house-band no-dig
 
 ## 2024 IRC in v1
 

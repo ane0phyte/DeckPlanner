@@ -168,6 +168,12 @@ export function buildCutList(project: Project): CutList {
       qty: posts.length,
       notes: "No frost. No footing sizing.",
     },
+    ...posts.map((p) => ({
+      item: `Post hole ${p.nominalSize}`,
+      product: p.nominalSize,
+      qty: 1,
+      notes: `XY (${p.origin.x.toFixed(1)}, ${p.origin.y.toFixed(1)}) · ${p.label}`,
+    })),
   ];
 
   const areaSqFt = projectAreaSqIn(project, iPerU) / 144;

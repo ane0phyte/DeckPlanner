@@ -29,6 +29,7 @@ import {
 } from "../irc/tables";
 import {
   add,
+  closestOnSeg,
   dist,
   fromAngleDeg,
   lerp,
@@ -38,6 +39,7 @@ import {
   projectT,
   sub,
 } from "../geom/vec";
+import { joistBaySpansIn, splitSegmentAtLines } from "./joistSupport";
 import {
   bbox,
   clipLineToPolygonSegments,
@@ -47,13 +49,20 @@ import {
   polygonClosed,
   polygonEdges,
 } from "../geom/polygon";
-import { dressedSize } from "../units/length";
+import { dressedSize, formatInches } from "../units/length";
 import { createBoxObject } from "../edit/typedBox";
 
 export interface FillResult {
   project: Project;
   error: string | null;
 }
+
+/** First drop-beam line from the ledger (Anthony / sketch). */
+const FIRST_BAY_TARGET_IN = 120;
+/** Post-to-post along a beam. */
+const MAX_POST_OC_IN = 96;
+/** Shorter orthogonal chords are a dogleg — use diagonal beams instead. */
+const MIN_ORTHO_CHORD_IN = 96;
 
 const FILL_TYPES = new Set<PlannerObject["type"]>([
   "post",
@@ -141,107 +150,78 @@ export function fillProject(project: Project): FillResult {
   const spacingIn = spacingInfo.spacingIn;
   const spacingU = spacingIn * unitsPerIn;
 
-  const max12 = smallestJoistForSpan(1e9, spacingIn);
-  const max2x12 = max12.maxSpanIn;
-  const clearanceU = next.settings.ledgerToDropBeamClearanceIn * unitsPerIn;
-
-  const beamStations: number[] = [];
-  let remaining = depthIn;
-  let cursorFromLedger = Math.max(0, next.settings.ledgerToDropBeamClearanceIn);
-  if (clearanceU > 0) {
-    remaining = depthIn - next.settings.ledgerToDropBeamClearanceIn;
-  }
-  while (remaining > 1) {
-    const trySize = smallestJoistForSpan(Math.min(remaining, max2x12), spacingIn);
-    const size: JoistSize = trySize.size ?? "2x12";
-    const maxSpan = trySize.size ? trySize.maxSpanIn : max2x12;
-    const maxCant = maxJoistCantilever(size, Math.min(remaining, maxSpan)) ?? 0;
-    let span = Math.min(remaining, maxSpan);
-    let cant = 0;
-    if (remaining > maxSpan && remaining <= maxSpan + maxCant) {
-      span = maxSpan;
-      cant = remaining - maxSpan;
-    } else if (remaining > maxSpan + maxCant) {
-      span = maxSpan;
-      cant = 0;
-    }
-    cursorFromLedger += span;
-    beamStations.push(cursorFromLedger);
-    remaining -= span + cant;
-    if (cant > 0) break;
-    if (beamStations.length > 12) break;
-  }
-  if (beamStations.length === 0) {
-    beamStations.push(Math.max(depthIn * 0.85, next.settings.ledgerToDropBeamClearanceIn || depthIn));
-  }
-
   const created: PlannerObject[] = [];
   const species = next.settings.defaultSpeciesLabel || DEFAULT_SPECIES_LABEL;
+  const noDig = collectNoDig(next, iPerU);
+  const userBeams = findByType(next, "beam");
 
-  const beams: BeamObject[] = [];
+  const firstPick = smallestJoistForSpan(FIRST_BAY_TARGET_IN, spacingIn);
+  const joistNominal: JoistSize = firstPick.size ?? "2x12";
+  const firstBayIn = firstPick.size
+    ? FIRST_BAY_TARGET_IN
+    : firstPick.maxSpanIn || FIRST_BAY_TARGET_IN;
+  const joistDressed = dressedSize(joistNominal)!;
+  const maxCantIn = maxJoistCantilever(joistNominal, firstBayIn);
+
+  const beamStations: number[] = [];
+  if (depthIn > firstBayIn + 3) {
+    beamStations.push(firstBayIn);
+    let cursor = firstBayIn;
+    while (beamStations.length < 8) {
+      const remaining = depthIn - cursor;
+      if (remaining <= (maxCantIn ?? 0) + 3) break;
+      const nextSta = cursor + firstBayIn;
+      const probe = chordsAtDepth(nextSta, ledgerMid, ledgerProj, intoDeck, beamAxis, widthIn, unitsPerIn, poly);
+      const longestIn = probe.reduce((m, s) => Math.max(m, dist(s.a, s.b) * iPerU), 0);
+      if (longestIn < MIN_ORTHO_CHORD_IN) break;
+      beamStations.push(nextSta);
+      cursor = nextSta;
+    }
+  } else if (depthIn > 36 && depthIn > (maxCantIn ?? 0) + 12) {
+    const cant = maxCantIn ?? 12;
+    const sta = Math.min(firstBayIn, Math.max(18, depthIn - cant));
+    if (sta > 12 && sta < depthIn - 2) beamStations.push(sta);
+  }
+
+  const beams: BeamObject[] = [...userBeams];
+  const posts: PostObject[] = findByType(next, "post").filter((p) => p.source === "user");
+  for (const ub of userBeams) {
+    postsAlongBeam(ub, posts, created, noDig, poly, iPerU, species, intoDeck, ledgerProj);
+  }
+
   for (const stationIn of beamStations) {
-    const stationU = stationIn * unitsPerIn;
-    const origin = add(ledgerMid, mul(intoDeck, ledgerProj - (ledgerMid.x * intoDeck.x + ledgerMid.y * intoDeck.y) + stationU));
-    const half = ((widthIn + 48) / 2) * unitsPerIn;
-    const rawA = add(origin, mul(beamAxis, -half * 4));
-    const rawB = add(origin, mul(beamAxis, half * 4));
-    const chords = clipLineToPolygonSegments(rawA, rawB, poly).filter((s) => dist(s.a, s.b) > 1e-3);
+    const chords = chordsAtDepth(stationIn, ledgerMid, ledgerProj, intoDeck, beamAxis, widthIn, unitsPerIn, poly);
     for (const clipped of chords) {
-      const spanIn = dist(clipped.a, clipped.b) * iPerU;
-      const joistSpanIn = stationIn;
-      const beamLookup = smallestBeamForSpan({
-        joistSpanIn,
-        joistCantileverIn: 0,
-        beamSpanIn: spanIn,
-      });
-      const nominal = "2x10";
-      const dressed = dressedSize(nominal)!;
-      const beam: BeamObject = {
-        id: newId(),
-        type: "beam",
-        source: "fill",
-        label: beamLookup.verified ? `${beamLookup.plyCount}-${beamLookup.nominalSize}` : "BEAM (size per Table R507.5(1))",
-        speciesLabel: species,
-        speciesTable: "southern-pine-no-2",
-        material: "dimension lumber",
-        treatment: "above-ground",
-        notes: beamLookup.reason,
-        a: clipped.a,
-        b: clipped.b,
-        plyCount: 2,
-        nominalSize: nominal,
-        actualWidthIn: dressed.w * 2,
-        actualDepthIn: dressed.d,
-        drop: true,
-        sizeVerified: false,
-        diagonal: false,
-      };
+      if (dist(clipped.a, clipped.b) * iPerU < 12) continue;
+      const beam = makeFillBeam(clipped.a, clipped.b, stationIn, species, iPerU, false);
       beams.push(beam);
       created.push(beam);
+      postsAlongBeam(beam, posts, created, noDig, poly, iPerU, species, intoDeck, ledgerProj);
     }
   }
 
-  const noDig = collectNoDig(next, iPerU);
-
-  for (const beam of beams) {
-    const spanIn = dist(beam.a, beam.b) * iPerU;
-    const maxCantU = maxBeamCantileverIn(spanIn) * unitsPerIn;
-    const endPosts = [
-      { t: 0, p: beam.a },
-      { t: 1, p: beam.b },
-    ];
-    for (const ep of endPosts) {
-      const placed = placePostAlongBeam(ep.p, beam, noDig, maxCantU, iPerU, species, poly);
-      created.push(placed);
-    }
-  }
-
-  const joistSizeGuess = smallestJoistForSpan(
-    beamStations[0] ?? depthIn,
+  addDiagonalSupports({
+    poly,
+    ledger,
+    beams,
+    posts,
+    created,
+    noDig,
+    intoDeck,
+    across,
+    acrossMin,
+    acrossMax,
+    nearProj,
+    farProj,
+    spacingU,
+    firstBayIn,
+    maxCantIn,
     spacingIn,
-  );
-  const joistNominal: JoistSize = joistSizeGuess.size ?? "2x12";
-  const joistDressed = dressedSize(joistNominal)!;
+    iPerU,
+    unitsPerIn,
+    species,
+    ledgerProj,
+  });
 
   const startAcross = acrossMin + 0.75 * unitsPerIn;
   const endAcross = acrossMax - 0.75 * unitsPerIn;
@@ -351,22 +331,26 @@ export function fillProject(project: Project): FillResult {
     for (const clipped of clipLineToPolygonSegments(a0, b0, poly)) {
       if (dist(clipped.a, clipped.b) * iPerU < 6) continue;
       if (!pointInPolygon(lerp(clipped.a, clipped.b, 0.5), poly)) continue;
-      const board: BoardObject = {
-        id: newId(),
-        type: "board",
-        source: "fill",
-        label: decking.productName || "decking",
-        speciesLabel: species,
-        speciesTable: "southern-pine-no-2",
-        material: decking.productName || "decking",
-        treatment: "above-ground",
-        notes: `gap ${decking.gapIn}"`,
-        a: clipped.a,
-        b: clipped.b,
-        actualWidthIn: decking.boardWidthIn,
-        actualThicknessIn: decking.thicknessIn,
-      };
-      created.push(board);
+      const pieces = splitSegmentAtLines(clipped.a, clipped.b, breaker);
+      for (const piece of pieces) {
+        if (dist(piece.a, piece.b) * iPerU < 4) continue;
+        const board: BoardObject = {
+          id: newId(),
+          type: "board",
+          source: "fill",
+          label: decking.productName || "decking",
+          speciesLabel: species,
+          speciesTable: "southern-pine-no-2",
+          material: decking.productName || "decking",
+          treatment: "above-ground",
+          notes: `gap ${decking.gapIn}"`,
+          a: piece.a,
+          b: piece.b,
+          actualWidthIn: decking.boardWidthIn,
+          actualThicknessIn: decking.thicknessIn,
+        };
+        created.push(board);
+      }
     }
   }
 
@@ -510,6 +494,278 @@ function hitsNoDig(p: { x: number; y: number }, noDig: NoDig[]): boolean {
   return false;
 }
 
+function chordsAtDepth(
+  stationIn: number,
+  ledgerMid: { x: number; y: number },
+  ledgerProj: number,
+  intoDeck: { x: number; y: number },
+  beamAxis: { x: number; y: number },
+  widthIn: number,
+  unitsPerIn: number,
+  poly: { x: number; y: number }[],
+): { a: { x: number; y: number }; b: { x: number; y: number } }[] {
+  const stationU = stationIn * unitsPerIn;
+  const origin = add(ledgerMid, mul(intoDeck, ledgerProj - (ledgerMid.x * intoDeck.x + ledgerMid.y * intoDeck.y) + stationU));
+  const half = ((widthIn + 48) / 2) * unitsPerIn;
+  const rawA = add(origin, mul(beamAxis, -half * 4));
+  const rawB = add(origin, mul(beamAxis, half * 4));
+  return clipLineToPolygonSegments(rawA, rawB, poly).filter((s) => dist(s.a, s.b) > 1e-3);
+}
+
+function makeFillBeam(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  joistSpanIn: number,
+  species: string,
+  iPerU: number,
+  diagonal: boolean,
+): BeamObject {
+  const spanIn = dist(a, b) * iPerU;
+  const beamLookup = smallestBeamForSpan({
+    joistSpanIn,
+    joistCantileverIn: 0,
+    beamSpanIn: spanIn,
+  });
+  const nominal = "2x8";
+  const dressed = dressedSize(nominal)!;
+  return {
+    id: newId(),
+    type: "beam",
+    source: "fill",
+    label: beamLookup.verified
+      ? `${beamLookup.plyCount}-${beamLookup.nominalSize}`
+      : diagonal
+        ? "BEAM diagonal (size per Table R507.5(1))"
+        : "BEAM (size per Table R507.5(1))",
+    speciesLabel: species,
+    speciesTable: "southern-pine-no-2",
+    material: "dimension lumber",
+    treatment: "above-ground",
+    notes: beamLookup.reason,
+    a,
+    b,
+    plyCount: 2,
+    nominalSize: nominal,
+    actualWidthIn: dressed.w * 2,
+    actualDepthIn: dressed.d,
+    drop: true,
+    sizeVerified: false,
+    diagonal,
+  };
+}
+
+function postsAlongBeam(
+  beam: BeamObject,
+  posts: PostObject[],
+  created: PlannerObject[],
+  noDig: NoDig[],
+  poly: { x: number; y: number }[],
+  iPerU: number,
+  species: string,
+  intoDeck: { x: number; y: number },
+  ledgerProj: number,
+): void {
+  const spanIn = dist(beam.a, beam.b) * iPerU;
+  const maxCantU = maxBeamCantileverIn(spanIn) * (1 / iPerU);
+  const n = Math.max(1, Math.ceil(spanIn / MAX_POST_OC_IN));
+  for (let i = 0; i <= n; i++) {
+    const isEnd = i === 0 || i === n;
+    const preferred = lerp(beam.a, beam.b, i / n);
+    const post = placePostAlongBeam(
+      preferred,
+      beam,
+      noDig,
+      maxCantU,
+      iPerU,
+      species,
+      poly,
+      intoDeck,
+      ledgerProj,
+      isEnd,
+    );
+    const mergeIn = isEnd ? 1 : 8;
+    if (posts.some((q) => dist(q.origin, post.origin) * iPerU < mergeIn)) continue;
+    posts.push(post);
+    created.push(post);
+  }
+}
+
+function joistFailsR5076(
+  chord: { a: { x: number; y: number }; b: { x: number; y: number } },
+  ledger: LedgerObject,
+  beams: BeamObject[],
+  maxCantIn: number | null,
+  spacingIn: number,
+  iPerU: number,
+): boolean {
+  const bays = joistBaySpansIn(chord, ledger, beams, iPerU);
+  const sized = smallestJoistForSpan(bays.maxBayIn, spacingIn);
+  const cantOk = maxCantIn == null ? bays.cantileverIn < 1 : bays.cantileverIn <= maxCantIn + 1e-6;
+  const spanOk = sized.size != null && bays.maxBayIn <= sized.maxSpanIn + 1e-6;
+  return !spanOk || !cantOk;
+}
+
+function sampleJoistChords(
+  poly: { x: number; y: number }[],
+  intoDeck: { x: number; y: number },
+  across: { x: number; y: number },
+  acrossMin: number,
+  acrossMax: number,
+  nearProj: number,
+  farProj: number,
+  spacingU: number,
+  unitsPerIn: number,
+  iPerU: number,
+): { a: { x: number; y: number }; b: { x: number; y: number } }[] {
+  const out: { a: { x: number; y: number }; b: { x: number; y: number } }[] = [];
+  for (let s = acrossMin + 0.75 * unitsPerIn; s <= acrossMax + 1e-6; s += spacingU) {
+    const along0 = add(mul(across, s), mul(intoDeck, nearProj - 20 * unitsPerIn));
+    const along1 = add(mul(across, s), mul(intoDeck, farProj + 20 * unitsPerIn));
+    for (const clipped of clipLineToPolygonSegments(along0, along1, poly)) {
+      if (dist(clipped.a, clipped.b) * iPerU >= 12) out.push(clipped);
+    }
+  }
+  return out;
+}
+
+function lastOrthoBeam(
+  beams: BeamObject[],
+  intoDeck: { x: number; y: number },
+): BeamObject | null {
+  const ortho = beams.filter((b) => !b.diagonal);
+  if (!ortho.length) return null;
+  return ortho.reduce((a, b) => {
+    const ap = ((a.a.x + a.b.x) / 2) * intoDeck.x + ((a.a.y + a.b.y) / 2) * intoDeck.y;
+    const bp = ((b.a.x + b.b.x) / 2) * intoDeck.x + ((b.a.y + b.b.y) / 2) * intoDeck.y;
+    return bp > ap ? b : a;
+  });
+}
+
+function addDiagonalSupports(args: {
+  poly: { x: number; y: number }[];
+  ledger: LedgerObject;
+  beams: BeamObject[];
+  posts: PostObject[];
+  created: PlannerObject[];
+  noDig: NoDig[];
+  intoDeck: { x: number; y: number };
+  across: { x: number; y: number };
+  acrossMin: number;
+  acrossMax: number;
+  nearProj: number;
+  farProj: number;
+  spacingU: number;
+  firstBayIn: number;
+  maxCantIn: number | null;
+  spacingIn: number;
+  iPerU: number;
+  unitsPerIn: number;
+  species: string;
+  ledgerProj: number;
+}): void {
+  const {
+    poly,
+    ledger,
+    beams,
+    posts,
+    created,
+    noDig,
+    intoDeck,
+    across,
+    acrossMin,
+    acrossMax,
+    nearProj,
+    farProj,
+    spacingU,
+    firstBayIn,
+    maxCantIn,
+    spacingIn,
+    iPerU,
+    unitsPerIn,
+    species,
+    ledgerProj,
+  } = args;
+  const samples = sampleJoistChords(
+    poly,
+    intoDeck,
+    across,
+    acrossMin,
+    acrossMax,
+    nearProj,
+    farProj,
+    spacingU,
+    unitsPerIn,
+    iPerU,
+  );
+  const failing = samples.filter((c) =>
+    joistFailsR5076(c, ledger, beams, maxCantIn, spacingIn, iPerU),
+  );
+  if (!failing.length) return;
+
+  const last = lastOrthoBeam(beams, intoDeck);
+  const farOf = (seg: { a: { x: number; y: number }; b: { x: number; y: number } }) => {
+    const ap = seg.a.x * intoDeck.x + seg.a.y * intoDeck.y;
+    const bp = seg.b.x * intoDeck.x + seg.b.y * intoDeck.y;
+    return ap >= bp ? seg.a : seg.b;
+  };
+  const acrossOf = (p: { x: number; y: number }) => p.x * across.x + p.y * across.y;
+  const farPts = failing.map(farOf);
+  const lastProj = last
+    ? ((last.a.x + last.b.x) / 2) * intoDeck.x + ((last.a.y + last.b.y) / 2) * intoDeck.y
+    : nearProj;
+  const farVerts = poly.filter((p) => p.x * intoDeck.x + p.y * intoDeck.y > lastProj + 8);
+  const tipCand = [...farPts, ...farVerts].reduce((a, b) =>
+    a.x * intoDeck.x + a.y * intoDeck.y > b.x * intoDeck.x + b.y * intoDeck.y ? a : b,
+  );
+  const centroid = polygonCentroid(poly);
+  const nudged = lerp(tipCand, centroid, 0.08);
+  const tip = pointInPolygon(nudged, poly) ? nudged : tipCand;
+
+  const minA = Math.min(...farPts.map(acrossOf));
+  const maxA = Math.max(...farPts.map(acrossOf));
+  const margin = 16 * unitsPerIn;
+  const anchorAt = (acrossVal: number) => {
+    if (!last) {
+      const origin = add(mul(across, acrossVal), mul(intoDeck, lastProj + firstBayIn * unitsPerIn));
+      return closestOnSeg(origin, failing[0].a, failing[0].b);
+    }
+    const t = projectT(add(mul(across, acrossVal), mul(intoDeck, lastProj)), last.a, last.b);
+    return lerp(last.a, last.b, Math.max(0, Math.min(1, t)));
+  };
+  const anchors = [anchorAt(minA - margin), anchorAt(maxA + margin)].filter(
+    (p, i, arr) => arr.findIndex((q) => dist(p, q) * iPerU < 12) === i,
+  );
+
+  const placeDiag = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+    for (const seg of clipLineToPolygonSegments(a, b, poly)) {
+      if (dist(seg.a, seg.b) * iPerU < 18) continue;
+      const beam = makeFillBeam(seg.a, seg.b, firstBayIn, species, iPerU, true);
+      beams.push(beam);
+      created.push(beam);
+      postsAlongBeam(beam, posts, created, noDig, poly, iPerU, species, intoDeck, ledgerProj);
+    }
+  };
+
+  for (const anchor of anchors) placeDiag(anchor, tip);
+
+  for (const chord of failing) {
+    if (!joistFailsR5076(chord, ledger, beams, maxCantIn, spacingIn, iPerU)) continue;
+    const aProj = chord.a.x * intoDeck.x + chord.a.y * intoDeck.y;
+    const bProj = chord.b.x * intoDeck.x + chord.b.y * intoDeck.y;
+    const near = aProj <= bProj ? chord.a : chord.b;
+    const far = aProj <= bProj ? chord.b : chord.a;
+    const lenIn = dist(near, far) * iPerU;
+    const bays = joistBaySpansIn(chord, ledger, beams, iPerU);
+    const fromLast = Math.min(firstBayIn, (maxCantIn ?? firstBayIn) + 6);
+    const already = lenIn - bays.cantileverIn;
+    const tNeed = Math.min(0.92, Math.max(0.2, (already + fromLast) / Math.max(lenIn, 1)));
+    const split = lerp(near, far, tNeed);
+    if (!pointInPolygon(split, poly)) continue;
+    const anchor = last ? closestOnSeg(split, last.a, last.b) : near;
+    placeDiag(anchor, split);
+  }
+}
+
 function clampToOutlineOnBeam(
   p: { x: number; y: number },
   beam: BeamObject,
@@ -538,11 +794,14 @@ function placePostAlongBeam(
   iPerU: number,
   species: string,
   poly: { x: number; y: number }[],
+  intoDeck: { x: number; y: number },
+  ledgerProj: number,
+  lockEnd: boolean,
 ): PostObject {
-  const dressed = dressedSize("4x4")!;
-  let p = clampToOutlineOnBeam(preferred, beam, poly);
+  const dressed = dressedSize("6x6")!;
+  let p = pointInPolygon(preferred, poly) ? preferred : clampToOutlineOnBeam(preferred, beam, poly);
   let flagged = false;
-  if (hitsNoDig(p, noDig)) {
+  if (hitsNoDig(p, noDig) && !lockEnd) {
     let found: { x: number; y: number } | null = null;
     for (let i = 0; i <= 80; i++) {
       const cand = lerp(beam.a, beam.b, i / 80);
@@ -556,23 +815,27 @@ function placePostAlongBeam(
     if (found) p = found;
     else {
       flagged = true;
-      p = clampToOutlineOnBeam(preferred, beam, poly);
+      p = pointInPolygon(preferred, poly) ? preferred : clampToOutlineOnBeam(preferred, beam, poly);
     }
+  } else if (hitsNoDig(p, noDig)) {
+    flagged = true;
   }
+  const fromLedgerIn = (p.x * intoDeck.x + p.y * intoDeck.y - ledgerProj) * iPerU;
   const t = projectT(p, beam.a, beam.b);
-  void iPerU;
   return {
     id: newId(),
     type: "post",
     source: "fill",
-    label: "4x4 post",
+    label: `6x6 · ${formatInches(Math.max(0, fromLedgerIn))} from ledger`,
     speciesLabel: species,
     speciesTable: "southern-pine-no-2",
     material: "dimension lumber",
     treatment: "ground-contact",
-    notes: flagged ? "Could not clear no-dig within legal beam cantilever" : "",
+    notes: flagged
+      ? "Could not clear no-dig within legal beam cantilever. Type post height (deck − grade)."
+      : "Type post height (deck − grade). 6x6 because height is unset; 4x4 is only for short posts in Table R507.4.",
     origin: p,
-    nominalSize: "4x4",
+    nominalSize: "6x6",
     actualWidthIn: dressed.w,
     actualDepthIn: dressed.d,
     beamId: beam.id,
