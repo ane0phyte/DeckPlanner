@@ -199,6 +199,33 @@ function ObjectInspector({
       <p className="hint">
         {obj.type} · {obj.source} · {obj.label}
       </p>
+      {getOrientedBox(obj) && (
+        <SelectField
+          label="Type"
+          value={obj.type === "board" ? "board" : "stairs"}
+          onChange={(v) => {
+            mutate((p) => ({
+              ...p,
+              objects: p.objects.map((o) => (o.id === obj.id ? relabelBox(o, v as BoxKind) : o)),
+            }));
+          }}
+          options={[
+            { value: "stairs", label: "Stairs" },
+            { value: "board", label: "Board" },
+          ]}
+        />
+      )}
+      {(obj.type === "stairs" || obj.type === "existingStairs") && (
+        <>
+          <LengthField
+            label="Width (clear)"
+            value={obj.widthIn}
+            placeholder={fromBox != null ? formatInches(fromBox) : "from box when scale is set"}
+            onChange={(v) => update(obj.id, { widthIn: v })}
+          />
+          <LengthField label="Rise (typed)" value={obj.riseIn} onChange={(v) => update(obj.id, { riseIn: v })} />
+        </>
+      )}
       {(obj.type === "outline" || obj.type === "nodigZone") && (
         <button type="button" className="wide danger" onClick={onDeleteWhole}>
           Delete entire {obj.type === "outline" ? "outline" : "no-dig zone"}
@@ -310,33 +337,6 @@ function ObjectInspector({
             { value: "blocking", label: "Blocking" },
           ]}
         />
-      )}
-      {getOrientedBox(obj) && (
-        <SelectField
-          label="Type"
-          value={obj.type === "board" ? "board" : "stairs"}
-          onChange={(v) => {
-            mutate((p) => ({
-              ...p,
-              objects: p.objects.map((o) => (o.id === obj.id ? relabelBox(o, v as BoxKind) : o)),
-            }));
-          }}
-          options={[
-            { value: "stairs", label: "Stairs" },
-            { value: "board", label: "Board" },
-          ]}
-        />
-      )}
-      {(obj.type === "stairs" || obj.type === "existingStairs") && (
-        <>
-          <LengthField
-            label="Width (clear)"
-            value={obj.widthIn}
-            placeholder={fromBox != null ? formatInches(fromBox) : "from box when scale is set"}
-            onChange={(v) => update(obj.id, { widthIn: v })}
-          />
-          <LengthField label="Rise (typed)" value={obj.riseIn} onChange={(v) => update(obj.id, { riseIn: v })} />
-        </>
       )}
       {obj.type === "nodigPoint" && (
         <LengthField
