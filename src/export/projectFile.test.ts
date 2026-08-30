@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { emptyProject } from "../model/project";
 import {
+  PROJECT_FILE_TYPE,
   parseProjectText,
   projectFileName,
   projectJson,
@@ -13,6 +14,15 @@ afterEach(() => {
 });
 
 describe("project file", () => {
+  it("uses accept extensions Chrome allows (max 16 chars including the dot)", () => {
+    const exts = Object.values(PROJECT_FILE_TYPE.accept).flat();
+    for (const ext of exts) {
+      expect(ext.startsWith(".")).toBe(true);
+      expect(ext.length).toBeLessThanOrEqual(16);
+    }
+    expect(projectFileName(emptyProject())).toMatch(/\.deckplanner\.json$/);
+  });
+
   it("names a .deckplanner.json from the project title", () => {
     const p = emptyProject();
     p.settings.name = "Back yard deck";

@@ -1,8 +1,8 @@
 import type { Project } from "../model/types";
 
 export const PROJECT_FILE_TYPE = {
-  description: "Deck Planner project",
-  accept: { "application/json": [".json", ".deckplanner.json"] },
+  description: "Deck Planner project (.deckplanner.json)",
+  accept: { "application/json": [".json"] },
 };
 
 export function projectFileName(project: Project, existing?: string | null): string {
