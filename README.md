@@ -17,6 +17,8 @@ npm run dev
 
 Open the printed local URL (typically `http://localhost:5173`) in **Chrome**.
 
+A drawing-only stand-in photo is at `public/sample-overhead.svg` (load it with **Photo**). It includes a marked 12'-0" sidewalk for scale. The brown rectangle is an existing floating deck — backdrop only; do not convert it.
+
 To type-check and run unit tests:
 
 ```bash

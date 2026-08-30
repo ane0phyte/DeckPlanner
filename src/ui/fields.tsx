@@ -57,7 +57,12 @@ export function LengthField({
             onChange(null);
             return;
           }
-          onChange(parseLengthToInches(t));
+          const parsed = parseLengthToInches(t);
+          if (parsed == null) {
+            e.target.value = value == null ? "" : String(value);
+            return;
+          }
+          onChange(parsed);
         }}
       />
     </Field>

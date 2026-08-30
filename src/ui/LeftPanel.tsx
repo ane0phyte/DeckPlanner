@@ -146,12 +146,14 @@ export function LeftPanel() {
         <LengthField
           label="Gap"
           value={s.decking.gapIn}
+          placeholder="1/8 or 0.125"
           onChange={(v) =>
             mutate((p) => ({ ...p, settings: { ...p.settings, decking: { ...p.settings.decking, gapIn: v } } }))
           }
         />
         <LengthField
           label="Max joist spacing"
+          placeholder="16"
           value={s.decking.maxJoistSpacingIn}
           onChange={(v) =>
             mutate((p) => ({

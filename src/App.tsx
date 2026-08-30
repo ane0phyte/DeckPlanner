@@ -45,7 +45,12 @@ function Shell() {
             </span>
             <span>
               {project.objects.filter((o) => o.type === "outline").length ? "outline" : "no outline"} ·{" "}
-              {project.objects.filter((o) => o.type === "ledger").length ? "ledger" : "no ledger"}
+              {project.objects.filter((o) => o.type === "ledger").length ? "ledger" : "no ledger"} ·{" "}
+              {project.settings.decking.productName.trim() &&
+              project.settings.decking.gapIn != null &&
+              project.settings.decking.maxJoistSpacingIn != null
+                ? "decking ready"
+                : "decking incomplete"}
             </span>
             <span>{project.flags.filter((f) => f.severity === "violation").length} violations</span>
             <span className="muted">

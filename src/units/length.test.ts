@@ -7,6 +7,9 @@ describe("length", () => {
     expect(parseLengthToInches("10' 6\"")).toBe(126);
     expect(parseLengthToInches("8 ft")).toBe(96);
     expect(parseLengthToInches("7.75")).toBe(7.75);
+    expect(parseLengthToInches("1/8")).toBe(0.125);
+    expect(parseLengthToInches("0.125")).toBe(0.125);
+    expect(parseLengthToInches("16")).toBe(16);
   });
 
   it("formats feet-inches", () => {

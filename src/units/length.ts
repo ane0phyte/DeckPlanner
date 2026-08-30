@@ -25,28 +25,38 @@ export function formatSpanPair(ft: number, inch: number): string {
   return `${ft}-${inch}`;
 }
 
+function parseInchToken(token: string): number | null {
+  const t = token.trim();
+  const mixed = t.match(/^(-?\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mixed) return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+  const frac = t.match(/^(-?\d+)\s*\/\s*(\d+)$/);
+  if (frac) return Number(frac[1]) / Number(frac[2]);
+  const n = Number(t);
+  return Number.isNaN(n) ? null : n;
+}
+
 export function parseLengthToInches(raw: string): number | null {
-  const text = raw.trim().toLowerCase();
+  const text = raw.trim().toLowerCase().replace(/inches?|in\.?/g, "").replace(/"/g, "").trim();
   if (!text) return null;
 
   const ftIn = text.match(
-    /^(-?\d+(?:\.\d+)?)\s*(?:ft|')\s*[-–]?\s*(-?\d+(?:\.\d+)?)\s*(?:in|")?$/,
+    /^(-?\d+(?:\.\d+)?)\s*(?:ft|')\s*[-–]?\s*(.+)$/,
   );
-  if (ftIn) return Number(ftIn[1]) * 12 + Number(ftIn[2]);
+  if (ftIn) {
+    const inches = parseInchToken(ftIn[2]);
+    if (inches != null) return Number(ftIn[1]) * 12 + inches;
+  }
 
-  const dashed = text.match(/^(-?\d+)\s*[-–]\s*(\d+(?:\.\d+)?)$/);
-  if (dashed) return Number(dashed[1]) * 12 + Number(dashed[2]);
+  const dashed = text.match(/^(-?\d+)\s*[-–]\s*(.+)$/);
+  if (dashed) {
+    const inches = parseInchToken(dashed[2]);
+    if (inches != null) return Number(dashed[1]) * 12 + inches;
+  }
 
   const onlyFt = text.match(/^(-?\d+(?:\.\d+)?)\s*(?:ft|')$/);
   if (onlyFt) return Number(onlyFt[1]) * 12;
 
-  const onlyIn = text.match(/^(-?\d+(?:\.\d+)?)\s*(?:in|")$/);
-  if (onlyIn) return Number(onlyIn[1]);
-
-  const bare = Number(text);
-  if (!Number.isNaN(bare)) return bare;
-
-  return null;
+  return parseInchToken(text);
 }
 
 export function ftIn(ft: number, inch = 0): number {

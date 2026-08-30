@@ -79,10 +79,14 @@ export function fillProject(project: Project): FillResult {
   }
 
   const decking = project.settings.decking;
-  if (!decking.productName.trim() || decking.gapIn == null || decking.maxJoistSpacingIn == null) {
+  const missing: string[] = [];
+  if (!decking.productName.trim()) missing.push("decking product name");
+  if (decking.gapIn == null) missing.push("decking gap (e.g. 1/8 or 0.125)");
+  if (decking.maxJoistSpacingIn == null) missing.push("max joist spacing (e.g. 16)");
+  if (missing.length) {
     return {
       project,
-      error: "Set decking product, gap, and max joist spacing before Fill. Also set joist and decking directions.",
+      error: `Set before Fill: ${missing.join("; ")}. Joist and decking directions are already on the left panel.`,
     };
   }
 
@@ -127,9 +131,10 @@ export function fillProject(project: Project): FillResult {
   const acrossMax = Math.max(...acrossProjs);
   const widthIn = (acrossMax - acrossMin) * iPerU;
 
+  const typedMax = decking.maxJoistSpacingIn as number;
   const deckingDiag = isDiagonal(next.settings.joistAngleDeg, next.settings.deckingAngleDeg);
   const spacingInfo = effectiveJoistSpacingIn({
-    typedMaxIn: decking.maxJoistSpacingIn,
+    typedMaxIn: typedMax,
     category: decking.category,
     diagonal: deckingDiag,
     multipleSpan: decking.install === "multiple-span",
