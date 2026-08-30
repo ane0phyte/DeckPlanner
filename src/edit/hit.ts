@@ -128,8 +128,13 @@ export function pointHitsObject(
       return dist(p, o.origin) <= pad;
     default:
       if ("a" in o && "b" in o) {
-        const b = lineBounds(o.a, o.b, pad);
-        return pointInBox(p, b.min, b.max);
+        const box = lineBounds(o.a, o.b, pad);
+        if (pointInBox(p, box.min, box.max)) return true;
+        const abx = o.b.x - o.a.x;
+        const aby = o.b.y - o.a.y;
+        const l2 = abx * abx + aby * aby;
+        const t = l2 < 1e-9 ? 0 : Math.max(0, Math.min(1, ((p.x - o.a.x) * abx + (p.y - o.a.y) * aby) / l2));
+        return dist(p, { x: o.a.x + abx * t, y: o.a.y + aby * t }) <= pad;
       }
       return false;
   }
