@@ -45,6 +45,17 @@ export function Toolbar() {
         <button type="button" onClick={() => photoRef.current?.click()}>
           Photo
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            void fetch("/sample-overhead.svg")
+              .then((r) => r.blob())
+              .then((b) => new File([b], "sample-overhead.svg", { type: "image/svg+xml" }))
+              .then(onPhoto);
+          }}
+        >
+          Sample photo
+        </button>
         <button type="button" onClick={() => openRef.current?.click()}>
           Open
         </button>
