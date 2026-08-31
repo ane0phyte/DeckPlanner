@@ -15,8 +15,8 @@ describe("cut list", () => {
       createUserObject("outline", [
         { x: 0, y: 0 },
         { x: 144, y: 0 },
-        { x: 144, y: 96 },
-        { x: 0, y: 96 },
+        { x: 144, y: 144 },
+        { x: 0, y: 144 },
       ])!,
       createUserObject("ledger", [
         { x: 0, y: 0 },

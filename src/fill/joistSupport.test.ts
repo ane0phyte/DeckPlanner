@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joistBaySpansIn, splitSegmentAtLines } from "./joistSupport";
+import { joistBaySpansIn, nextSupportOffsetIn, splitSegmentAtLines } from "./joistSupport";
 
 describe("joistSupport", () => {
   it("treats ledger-only joists as one span, not a full-length cantilever", () => {
@@ -51,5 +51,12 @@ describe("joistSupport", () => {
     expect(pieces).toHaveLength(2);
     expect(pieces[0].b.x).toBeCloseTo(40);
     expect(pieces[1].a.x).toBeCloseTo(40);
+  });
+
+  it("asks for another support when leftover cantilever exceeds the back-span cell", () => {
+    expect(nextSupportOffsetIn("2x8", 16, 24, 120, 120)).toBeNull();
+    const extra = nextSupportOffsetIn("2x8", 16, 93, 120, 120);
+    expect(extra).not.toBeNull();
+    expect(extra!).toBeGreaterThan(60);
   });
 });

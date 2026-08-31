@@ -1,5 +1,11 @@
 import type { Point } from "../model/types";
 import { dist, lerp } from "../geom/vec";
+import {
+  JOIST_SPAN_R507_6,
+  maxJoistCantilever,
+  nearestSpacing,
+  type JoistSize,
+} from "../irc/tables";
 
 function segIntersectT(a1: Point, a2: Point, b1: Point, b2: Point): number | null {
   const rx = a2.x - a1.x;
@@ -112,4 +118,59 @@ export function splitSegmentAtLines(
     out.push({ a: lerp(a, b, ts[i]), b: lerp(a, b, ts[i + 1]) });
   }
   return out.length ? out : [{ a, b }];
+}
+
+/** True when a joist bay or cantilever violates Table R507.6 for this size/spacing. */
+export function joistLayoutViolatesR5076(
+  joist: { a: Point; b: Point },
+  ledger: { a: Point; b: Point },
+  beams: { a: Point; b: Point }[],
+  size: JoistSize,
+  spacingIn: number,
+  iPerU: number,
+): boolean {
+  const bays = joistBaySpansIn(joist, ledger, beams, iPerU);
+  const col = nearestSpacing(spacingIn);
+  const maxSpan = JOIST_SPAN_R507_6[size][col];
+  if (bays.maxBayIn > maxSpan + 1e-6) return true;
+  const back = bays.backSpanIn > 6 ? bays.backSpanIn : bays.maxBayIn;
+  const maxCant = maxJoistCantilever(size, back);
+  if (maxCant == null) return bays.cantileverIn > 1;
+  return bays.cantileverIn > maxCant + 1e-6;
+}
+
+/**
+ * Inches from the last support to the next drop-beam along a joist, or null if the
+ * remaining cantilever is already legal. Prefers ~10 ft when that keeps R507.6.
+ */
+export function nextSupportOffsetIn(
+  size: JoistSize,
+  spacingIn: number,
+  remainingIn: number,
+  lastBayIn: number,
+  targetBayIn: number,
+): number | null {
+  if (remainingIn <= 1) return null;
+  const col = nearestSpacing(spacingIn);
+  const maxSpan = JOIST_SPAN_R507_6[size][col];
+  const cantIfStop = maxJoistCantilever(size, lastBayIn);
+  if (cantIfStop != null && remainingIn <= cantIfStop + 1e-6) return null;
+
+  const ok = (d: number): boolean => {
+    if (d < 6 || d > maxSpan + 1e-6) return false;
+    const leftover = remainingIn - d;
+    if (leftover < -1e-6) return false;
+    if (leftover <= 0.75) return true;
+    const mc = maxJoistCantilever(size, d);
+    return mc != null && leftover <= mc + 1e-6;
+  };
+
+  const preferred = Math.min(targetBayIn, remainingIn, maxSpan);
+  if (ok(preferred)) return preferred;
+
+  for (let d = Math.min(remainingIn, maxSpan); d >= 6; d -= 1) {
+    if (ok(d)) return d;
+  }
+  if (remainingIn <= maxSpan + 1e-6) return remainingIn;
+  return maxSpan;
 }
