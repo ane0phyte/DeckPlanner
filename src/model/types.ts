@@ -288,6 +288,8 @@ export interface ProjectSettings {
   defaultSpeciesLabel: string;
   snapOn: boolean;
   snapIncrementIn: number;
+  /** Orthogonal snap while placing/moving. Default on. Separate from increment snap. */
+  orthoSnap: boolean;
   joistAngleDeg: number;
   deckingAngleDeg: number;
   beamFillAngleDeg: number | null;

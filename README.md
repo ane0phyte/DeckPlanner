@@ -47,6 +47,8 @@ npm run build
 
 Snap increment starts **off**. You turn it on and set the increment.
 
+**Ortho snap** starts **on** (toolbar / status **Ortho** toggle, separate from increment snap). While on, placing or moving objects constrains to the ledger axis and its perpendicular (world X/Y if there is no ledger). Breakers snap perpendicular to the ledger; the ledger itself stays axis-aligned. Turn Ortho off to place or move a diagonal beam. Arrow keys nudge the selection 1 in (Shift+arrow uses the increment, default 6 in). After you pick from the overlap picker, the next drag on that stack moves the selected object instead of reopening the picker.
+
 ## Locked tools (Anthony leftover-button pass)
 
 **Generic box, then Type:** stairs (one type); board in photo. No dedicated Existing Stairs / Reused / convert-existing-stairs / Board in photo buttons.

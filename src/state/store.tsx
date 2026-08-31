@@ -12,6 +12,9 @@ import { cloneProject, emptyProject, inchesPerUnit } from "../model/project";
 import { evaluateProject } from "../irc/checks";
 import { convertHouseWallToLedger, createUserObject, fillProject } from "../fill/fill";
 import { createBoxObject } from "../edit/typedBox";
+import { translateObject } from "../edit/handles";
+import { objectPickPoint } from "../edit/hit";
+import { maybeSnapSecondPoint, shouldOrthoDraw } from "../edit/ortho";
 import { snapPoint } from "../geom/vec";
 import {
   deleteSelection,
@@ -77,6 +80,7 @@ interface Store {
   beginTransient: () => void;
   preview: (fn: (p: Project) => Project) => void;
   endTransient: () => void;
+  nudgeSelected: (dx: number, dy: number) => void;
   setDraftPoint: (index: number, p: Point) => void;
   fileName: string | null;
   dirty: boolean;
@@ -207,7 +211,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addDraftPoint = useCallback(
     (p: Point) => {
-      const snapped = applySnap(p);
+      let snapped = applySnap(p);
+      if (draftPoints.length === 1 && shouldOrthoDraw(tool)) {
+        snapped = maybeSnapSecondPoint(draftPoints[0], snapped, tool, project);
+      }
       if (POINT_PLACE_TOOLS.has(tool) && isDrawTool(tool)) {
         commitDrawnObject(tool, [snapped]);
         return;
@@ -219,18 +226,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         commitDrawnObject(tool, nextDraft);
       }
     },
-    [applySnap, commitDrawnObject, draftPoints, selectHandle, tool],
+    [applySnap, commitDrawnObject, draftPoints, project, selectHandle, tool],
   );
 
   const completeLine = useCallback(
     (end: Point, start?: Point) => {
       const a = start ?? draftPoints[0];
       if (!isDrawTool(tool) || !a) return;
-      const b = applySnap(end);
+      const b = maybeSnapSecondPoint(a, applySnap(end), tool, project);
       if (Math.hypot(b.x - a.x, b.y - a.y) < 2) return;
       commitDrawnObject(tool, [a, b]);
     },
-    [applySnap, commitDrawnObject, draftPoints, tool],
+    [applySnap, commitDrawnObject, draftPoints, project, tool],
   );
 
   const finishDraft = useCallback(() => {
@@ -411,6 +418,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProject((cur) => fn(cloneProject(cur)));
   }, []);
 
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+  const objectsRef = useRef(project.objects);
+  objectsRef.current = project.objects;
+
+  const nudgeSelected = useCallback(
+    (dx: number, dy: number) => {
+      const ids = selectedIdsRef.current;
+      if (!ids.length || (dx === 0 && dy === 0)) return;
+      const apply = (pr: Project): Project => {
+        let next = pr;
+        for (const id of ids) next = translateObject(next, id, { x: dx, y: dy });
+        return next;
+      };
+      if (transientFrom.current) preview(apply);
+      else mutate(apply);
+      const moved = objectsRef.current.find((o) => ids.includes(o.id));
+      if (moved) {
+        const pt = objectPickPoint(moved);
+        setCursorWorld({ x: pt.x + dx, y: pt.y + dy });
+      }
+    },
+    [mutate, preview],
+  );
+
   const endTransient = useCallback(() => {
     if (transientFrom.current) {
       past.current = [...past.current, transientFrom.current].slice(-MAX_HISTORY);
@@ -461,6 +493,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       beginTransient,
       preview,
       endTransient,
+      nudgeSelected,
       setDraftPoint,
       fileName,
       dirty,
@@ -492,6 +525,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       loadPhoto,
       mutate,
       newProject,
+      nudgeSelected,
       openFromDisk,
       openProject,
       openProjectFile,

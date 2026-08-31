@@ -352,6 +352,11 @@ button.select-cta {
   min-width: 9rem;
 }
 
+.status button {
+  padding: 0.05rem 0.4rem;
+  font-size: inherit;
+}
+
 .cut-row {
   cursor: pointer;
 }

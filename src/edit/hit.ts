@@ -182,15 +182,18 @@ export type SelectClick =
 
 /**
  * Tight handle (on the knob) wins so vertices stay draggable.
- * Otherwise overlapping bounds open the picker instead of silently
- * taking a nearby vertex or the biggest polygon.
+ * If a hit is already selected, keep it (mousedown on that stack starts a move,
+ * not another picker). Otherwise overlapping bounds open the picker.
  */
 export function resolveSelectClick(
   tightHandle: boolean,
   hits: HitCandidate[],
+  selectedIds: string[] = [],
 ): SelectClick {
   if (tightHandle) return { kind: "handle" };
+  if (!hits.length) return { kind: "none" };
+  const kept = hits.find((h) => selectedIds.includes(h.object.id));
+  if (kept) return { kind: "object", id: kept.object.id };
   if (hits.length > 1) return { kind: "picker", hits };
-  if (hits.length === 1) return { kind: "object", id: hits[0].object.id };
-  return { kind: "none" };
+  return { kind: "object", id: hits[0].object.id };
 }

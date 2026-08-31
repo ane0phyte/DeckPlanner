@@ -114,4 +114,22 @@ describe("bounds hit-test", () => {
   it("keeps a tight handle click as a handle so vertices stay draggable", () => {
     expect(resolveSelectClick(true, [{ object: { id: "x" } as never, area: 1 }]).kind).toBe("handle");
   });
+
+  it("does not reopen the picker when the selected object is still in the stack", () => {
+    const outline = createUserObject("outline", [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+      { x: 200, y: 160 },
+      { x: 0, y: 160 },
+    ])!;
+    const ledger = createUserObject("ledger", [
+      { x: 0, y: 0 },
+      { x: 200, y: 0 },
+    ])!;
+    const p = projectWith([outline, ledger]);
+    const hits = hitTestAll(p, { x: 80, y: 4 }, 1);
+    const resolved = resolveSelectClick(false, hits, [ledger.id]);
+    expect(resolved.kind).toBe("object");
+    if (resolved.kind === "object") expect(resolved.id).toBe(ledger.id);
+  });
 });

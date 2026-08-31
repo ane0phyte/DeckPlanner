@@ -36,22 +36,29 @@ describe("project file", () => {
     await expect(parseProjectText(projectJson(ok))).resolves.toMatchObject({ version: 1 });
   });
 
-  it("persists origin and typed waste percent", async () => {
+  it("persists origin, typed waste percent, and ortho snap", async () => {
     const p = emptyProject();
     p.origin = { x: 12, y: 34 };
     p.settings.wastePercent = 10;
+    p.settings.orthoSnap = false;
     const round = await parseProjectText(projectJson(p));
     expect(round.origin).toEqual({ x: 12, y: 34 });
     expect(round.settings.wastePercent).toBe(10);
+    expect(round.settings.orthoSnap).toBe(false);
   });
 
-  it("defaults missing origin and waste percent on old files", async () => {
-    const raw = JSON.parse(projectJson(emptyProject())) as { origin?: unknown; settings: { wastePercent?: unknown } };
+  it("defaults missing origin, waste percent, and ortho snap on old files", async () => {
+    const raw = JSON.parse(projectJson(emptyProject())) as {
+      origin?: unknown;
+      settings: { wastePercent?: unknown; orthoSnap?: unknown };
+    };
     delete raw.origin;
     delete raw.settings.wastePercent;
+    delete raw.settings.orthoSnap;
     const round = await parseProjectText(JSON.stringify(raw));
     expect(round.origin).toBeNull();
     expect(round.settings.wastePercent).toBeNull();
+    expect(round.settings.orthoSnap).toBe(true);
   });
 
   it("Save with a handle writes that file and does not open a picker", async () => {

@@ -11,7 +11,7 @@ import {
   type View,
 } from "./render";
 import type { Point } from "../model/types";
-import { dist, sub } from "../geom/vec";
+import { add, dist, sub } from "../geom/vec";
 import { parseKnownLengthToInches } from "../units/length";
 import {
   collectHandles,
@@ -29,6 +29,13 @@ import {
   resolveSelectClick,
   type HitCandidate,
 } from "../edit/hit";
+import {
+  maybeAxisAlignLedger,
+  maybeConstrainDelta,
+  maybeSnapSecondPoint,
+  shouldOrthoDraw,
+  skipAngleSnap,
+} from "../edit/ortho";
 
 const TOOL_HINTS: Partial<Record<string, string>> = {
   ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
@@ -84,6 +91,7 @@ export function PlanView() {
     mode: "pan" | "move-object" | "move-handle" | "draw-line" | "draw-box";
     last: Point;
     start?: Point;
+    applied?: Point;
     id?: string;
     handle?: Handle;
     moved: boolean;
@@ -164,13 +172,26 @@ export function PlanView() {
     if (drawing && handle && handle.kind === "draft") {
       setPicker(null);
       selectHandle(handle);
-      drag.current = { mode: "move-handle", last: p, handle, moved: false };
+      drag.current = {
+        mode: "move-handle",
+        last: p,
+        start: handle.index === 1 ? draftPoints[0] : handle.point,
+        handle,
+        moved: false,
+      };
       return;
     }
     if (!drawing && tightHandle) {
       setPicker(null);
       selectHandle(tightHandle);
-      drag.current = { mode: "move-handle", last: p, handle: tightHandle, moved: false };
+      drag.current = {
+        mode: "move-handle",
+        last: p,
+        start: tightHandle.point,
+        applied: { x: 0, y: 0 },
+        handle: tightHandle,
+        moved: false,
+      };
       return;
     }
 
@@ -234,7 +255,7 @@ export function PlanView() {
     }
 
     const hits = hitTestAll(project, p, view.scale);
-    const resolved = resolveSelectClick(false, hits);
+    const resolved = resolveSelectClick(false, hits, selectedIds);
     if (resolved.kind === "none") {
       setPicker(null);
       select([]);
@@ -243,7 +264,14 @@ export function PlanView() {
     if (resolved.kind === "object") {
       setPicker(null);
       select([resolved.id]);
-      drag.current = { mode: "move-object", last: p, id: resolved.id, moved: false };
+      drag.current = {
+        mode: "move-object",
+        last: p,
+        start: p,
+        applied: { x: 0, y: 0 },
+        id: resolved.id,
+        moved: false,
+      };
       return;
     }
     if (resolved.kind === "picker") {
@@ -262,46 +290,87 @@ export function PlanView() {
       setView((v) => ({ ...v, panX: v.panX + dx, panY: v.panY + dy }));
       return;
     }
-    const p = applySnap(localPoint(e));
-    const delta = sub(p, drag.current.last);
-    if (dist(p, drag.current.last) < 1e-9) return;
-    if (!drag.current.moved) {
-      drag.current.moved = true;
-      if (
-        drag.current.mode === "move-object" ||
-        (drag.current.mode === "move-handle" && drag.current.handle?.kind !== "draft")
-      ) {
-        beginTransient();
-      }
-    }
-    drag.current.last = p;
+    const raw = applySnap(localPoint(e));
+    if (dist(raw, drag.current.last) < 1e-9) return;
 
     if (drag.current.mode === "move-handle" && drag.current.handle) {
       const h = drag.current.handle;
+      let p = raw;
       if (h.kind === "draft") {
+        if (h.index === 1 && drag.current.start && shouldOrthoDraw(tool)) {
+          p = maybeSnapSecondPoint(drag.current.start, raw, tool, project);
+        }
+        if (!drag.current.moved) drag.current.moved = true;
+        drag.current.last = p;
         setDraftPoint(h.index, p);
         selectHandle({ ...h, point: p });
         return;
       }
       if (h.kind === "measure") {
-        const cur = measure ?? { a: p, b: p };
-        setMeasure(h.end === "a" ? { a: p, b: cur.b } : { a: cur.a, b: p });
-        selectHandle({ ...h, point: p });
+        if (!drag.current.moved) drag.current.moved = true;
+        drag.current.last = raw;
+        const cur = measure ?? { a: raw, b: raw };
+        setMeasure(h.end === "a" ? { a: raw, b: cur.b } : { a: cur.a, b: raw });
+        selectHandle({ ...h, point: raw });
         return;
       }
-      preview((pr) => moveHandle(pr, h, p));
-      selectHandle({ ...h, point: p });
+      if (!drag.current.moved) {
+        drag.current.moved = true;
+        beginTransient();
+      }
+      const start = drag.current.start ?? raw;
+      preview((pr) => {
+        let dest = raw;
+        const obj = "objectId" in h ? pr.objects.find((o) => o.id === h.objectId) : undefined;
+        if (h.kind === "endpoint" && obj && "a" in obj && "b" in obj && !skipAngleSnap(obj)) {
+          const other = h.end === "a" ? obj.b : obj.a;
+          dest = maybeSnapSecondPoint(other, raw, obj.type, pr);
+        } else if (h.kind === "origin") {
+          dest = add(start, maybeConstrainDelta(sub(raw, start), pr));
+        }
+        return moveHandle(pr, h, dest);
+      });
+      drag.current.last = raw;
+      selectHandle({ ...h, point: raw });
       return;
     }
 
     if (drag.current.mode === "draw-line" || drag.current.mode === "draw-box") {
+      if (!drag.current.moved) drag.current.moved = true;
+      let p = raw;
+      if (drag.current.mode === "draw-line" && drag.current.start && shouldOrthoDraw(tool)) {
+        p = maybeSnapSecondPoint(drag.current.start, raw, tool, project);
+      }
+      drag.current.last = p;
       setDraftPoint(1, p);
       return;
     }
 
     if (drag.current.mode === "move-object" && drag.current.id) {
+      const start = drag.current.start ?? drag.current.last;
+      const total = sub(raw, start);
+      const constrained = maybeConstrainDelta(total, project);
+      const applied = drag.current.applied ?? { x: 0, y: 0 };
+      const step = sub(constrained, applied);
+      if (Math.hypot(step.x, step.y) < 1e-12) {
+        drag.current.last = raw;
+        return;
+      }
+      if (!drag.current.moved) {
+        drag.current.moved = true;
+        beginTransient();
+      }
+      drag.current.last = raw;
+      drag.current.applied = constrained;
       const id = drag.current.id;
-      preview((pr) => translateObject(pr, id, delta));
+      const orthoOn = project.settings.orthoSnap;
+      preview((pr) => {
+        const next = translateObject(pr, id, step);
+        return {
+          ...next,
+          objects: next.objects.map((o) => (o.id === id ? maybeAxisAlignLedger(o, orthoOn) : o)),
+        };
+      });
     }
   }
 

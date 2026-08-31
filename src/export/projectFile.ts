@@ -37,6 +37,7 @@ export async function parseProjectText(text: string): Promise<Project> {
     settings: {
       ...data.settings,
       wastePercent: data.settings.wastePercent ?? null,
+      orthoSnap: data.settings.orthoSnap ?? true,
     },
     objects: migrateProjectObjects(data.objects),
   };

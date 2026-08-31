@@ -22,6 +22,7 @@ export function Toolbar() {
     loadPhoto,
     setTool,
     tool,
+    mutate,
     newProject,
     openFromDisk,
     openProjectFile,
@@ -127,6 +128,19 @@ export function Toolbar() {
           title="Click an object to select, then drag or Delete. Esc also returns here."
         >
           Select
+        </button>
+        <button
+          type="button"
+          className={project.settings.orthoSnap ? "active" : ""}
+          title="Orthogonal snap while placing or moving objects. Off = free angle / free 2D. Increment snap is separate."
+          onClick={() =>
+            mutate((p) => ({
+              ...p,
+              settings: { ...p.settings, orthoSnap: !p.settings.orthoSnap },
+            }))
+          }
+        >
+          Ortho
         </button>
         <button
           type="button"
