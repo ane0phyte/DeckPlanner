@@ -3,6 +3,7 @@ import { emptyProject } from "../model/project";
 import { createUserObject } from "../fill/fill";
 import {
   mergeCollinearBeams,
+  snapBeamPull,
   snapPointToPost,
   POST_LOCK_IN,
 } from "./beamSnap";
@@ -25,6 +26,20 @@ describe("beam-to-post lock", () => {
     expect(snapped.postId).toBe(post.id);
     expect(snapped.point).toEqual({ x: 48, y: 0 });
     expect(POST_LOCK_IN).toBe(1.5);
+    const across = snapBeamPull({ x: 0, y: 0 }, { x: 80, y: 0 }, [post], 1);
+    expect(across.postId).toBe(post.id);
+    expect(across.point).toEqual({ x: 48, y: 0 });
+  });
+
+  it("keeps a locked end on the post until dragged off the lock radius", () => {
+    const post = createUserObject("post", [{ x: 48, y: 0 }])! as PostObject;
+    post.actualWidthIn = 3.5;
+    post.actualDepthIn = 3.5;
+    const held = snapBeamPull({ x: 0, y: 0 }, { x: 70, y: 0 }, [post], 1, post.id);
+    expect(held.postId).toBe(post.id);
+    const off = snapBeamPull({ x: 0, y: 0 }, { x: 70, y: 10 }, [post], 1, post.id);
+    expect(off.postId).toBeNull();
+    expect(off.point).toEqual({ x: 70, y: 10 });
   });
 });
 

@@ -36,7 +36,7 @@ import {
   shouldOrthoDraw,
   skipAngleSnap,
 } from "../edit/ortho";
-import { mergeCollinearBeams, snapBeamEndsInProject, snapPointToPostInProject } from "../edit/beamSnap";
+import { mergeCollinearBeams, snapBeamEndsInProject, snapBeamPullInProject, snapPointToPostInProject } from "../edit/beamSnap";
 
 const TOOL_HINTS: Partial<Record<string, string>> = {
   ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
@@ -311,6 +311,11 @@ export function PlanView() {
         if (h.index === 1 && drag.current.start && shouldOrthoDraw(tool)) {
           p = maybeSnapSecondPoint(drag.current.start, raw, tool, project);
         }
+        if (h.index === 1 && tool === "beam" && drag.current.start) {
+          const s = snapBeamPullInProject(drag.current.start, p, project, drag.current.lockB);
+          p = s.point;
+          drag.current.lockB = s.postId;
+        }
         if (!drag.current.moved) drag.current.moved = true;
         drag.current.last = p;
         setDraftPoint(h.index, p);
@@ -340,7 +345,8 @@ export function PlanView() {
           dest = add(start, maybeConstrainDelta(sub(raw, start), pr));
         }
         if (h.kind === "endpoint" && obj?.type === "beam" && obj.source !== "fill") {
-          const s = snapPointToPostInProject(dest, pr, drag.current?.lockPostId);
+          const other = h.end === "a" && "b" in obj ? obj.b : "a" in obj ? obj.a : dest;
+          const s = snapBeamPullInProject(other, dest, pr, drag.current?.lockPostId);
           dest = s.point;
           if (drag.current) drag.current.lockPostId = s.postId;
         }
@@ -357,8 +363,8 @@ export function PlanView() {
       if (drag.current.mode === "draw-line" && drag.current.start && shouldOrthoDraw(tool)) {
         p = maybeSnapSecondPoint(drag.current.start, raw, tool, project);
       }
-      if (drag.current.mode === "draw-line" && tool === "beam") {
-        const s = snapPointToPostInProject(p, project, drag.current.lockB);
+      if (drag.current.mode === "draw-line" && tool === "beam" && drag.current.start) {
+        const s = snapBeamPullInProject(drag.current.start, p, project, drag.current.lockB);
         p = s.point;
         drag.current.lockB = s.postId;
       }

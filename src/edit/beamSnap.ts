@@ -1,6 +1,6 @@
 import type { BeamObject, PlannerObject, Point, PostObject, Project } from "../model/types";
 import { findByType, inchesPerUnit } from "../model/project";
-import { cross, dist, distToSeg, dot, norm, sub } from "../geom/vec";
+import { cross, dist, distToSeg, dot, norm, projectT, sub } from "../geom/vec";
 
 /** Inches: center within this of the post origin, or the post half-width if larger. */
 export const POST_LOCK_IN = 1.5;
@@ -35,6 +35,61 @@ export function snapPointToPost(
     }
   }
   return best ? { point: { ...best.origin }, postId: best.id } : { point: p, postId: null };
+}
+
+function postHitsPoint(post: PostObject, p: Point, units: number): boolean {
+  return dist(p, post.origin) * units <= postLockRadiusIn(post);
+}
+
+function postHitsSeg(post: PostObject, a: Point, b: Point, units: number): boolean {
+  return distToSeg(post.origin, a, b) * units <= postLockRadiusIn(post);
+}
+
+/**
+ * Moving end of a beam pull: lock to a post the end or edge hits.
+ * Does not slide past — the first post along `from → to` captures the end.
+ * A locked post stays until the cursor and the edge are both outside the lock radius.
+ */
+export function snapBeamPull(
+  from: Point,
+  to: Point,
+  posts: PostObject[],
+  iPerU: number,
+  lockedId?: string | null,
+): { point: Point; postId: string | null } {
+  const units = iPerU > 0 ? iPerU : 1;
+  if (lockedId) {
+    const locked = posts.find((q) => q.id === lockedId);
+    if (locked && (postHitsPoint(locked, to, units) || postHitsSeg(locked, from, to, units))) {
+      return { point: { ...locked.origin }, postId: locked.id };
+    }
+  }
+  const startLock = snapPointToPost(from, posts, iPerU, null);
+  const endLock = snapPointToPost(to, posts, iPerU, null);
+  if (endLock.postId && endLock.postId !== startLock.postId) return endLock;
+  let best: PostObject | null = null;
+  let bestT = Infinity;
+  for (const post of posts) {
+    if (startLock.postId && post.id === startLock.postId) continue;
+    if (!postHitsSeg(post, from, to, units)) continue;
+    const t = projectT(post.origin, from, to);
+    if (t <= 1e-4 || t > 1 + 1e-6) continue;
+    if (t < bestT) {
+      bestT = t;
+      best = post;
+    }
+  }
+  if (best) return { point: { ...best.origin }, postId: best.id };
+  return { point: to, postId: null };
+}
+
+export function snapBeamPullInProject(
+  from: Point,
+  to: Point,
+  project: Project,
+  lockedId?: string | null,
+): { point: Point; postId: string | null } {
+  return snapBeamPull(from, to, findByType(project, "post"), inchesPerUnit(project) ?? 1, lockedId);
 }
 
 export function snapPointToPostInProject(

@@ -15,7 +15,7 @@ import { createBoxObject } from "../edit/typedBox";
 import { translateObject } from "../edit/handles";
 import { objectPickPoint } from "../edit/hit";
 import { maybeSnapSecondPoint, shouldOrthoDraw } from "../edit/ortho";
-import { mergeCollinearBeams, snapBeamEndsInProject, snapPointToPostInProject } from "../edit/beamSnap";
+import { mergeCollinearBeams, snapBeamEndsInProject, snapBeamPullInProject, snapPointToPostInProject } from "../edit/beamSnap";
 import { snapPoint } from "../geom/vec";
 import {
   deleteSelection,
@@ -225,7 +225,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         snapped = maybeSnapSecondPoint(draftPoints[0], snapped, tool, project);
       }
       if (tool === "beam") {
-        snapped = snapPointToPostInProject(snapped, project).point;
+        if (draftPoints.length === 1) {
+          snapped = snapBeamPullInProject(draftPoints[0], snapped, project).point;
+        } else {
+          snapped = snapPointToPostInProject(snapped, project).point;
+        }
       }
       if (POINT_PLACE_TOOLS.has(tool) && isDrawTool(tool)) {
         commitDrawnObject(tool, [snapped]);
@@ -247,9 +251,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!isDrawTool(tool) || !a) return;
       let b = maybeSnapSecondPoint(a, applySnap(end), tool, project);
       if (tool === "beam") {
-        const snapped = snapBeamEndsInProject(a, b, project);
-        a = snapped.a;
-        b = snapped.b;
+        a = snapPointToPostInProject(a, project).point;
+        b = snapBeamPullInProject(a, b, project).point;
       }
       if (Math.hypot(b.x - a.x, b.y - a.y) < 2) return;
       commitDrawnObject(tool, [a, b]);
