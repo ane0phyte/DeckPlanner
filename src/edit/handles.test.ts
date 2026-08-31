@@ -96,6 +96,17 @@ describe("handles", () => {
     expect(gone.project.scale).toBeNull();
   });
 
+  it("moves and clears the plan origin datum", () => {
+    const p = emptyProject();
+    p.origin = { x: 10, y: 20 };
+    const h = collectHandles(p).find((x) => x.kind === "datum")!;
+    const moved = moveHandle(p, h, { x: 30, y: 40 });
+    expect(moved.origin).toEqual({ x: 30, y: 40 });
+    expect(moved.scale).toBeNull();
+    const gone = deleteSelection(moved, h);
+    expect(gone.project.origin).toBeNull();
+  });
+
   it("translates the whole outline", () => {
     const p = outlineProject();
     const next = translateObject(p, p.objects[0].id, { x: 5, y: -3 });

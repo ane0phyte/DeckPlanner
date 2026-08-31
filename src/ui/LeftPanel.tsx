@@ -7,6 +7,8 @@ import { Field, LengthField, NumField, SelectField, TextField, Toggle } from "./
 const PLACE_TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: "pan", label: "Pan", hint: "Drag the photo." },
   { id: "scale", label: "Set scale", hint: "Click two points, type a known length." },
+  { id: "measure", label: "Measure", hint: "Two clicks. Shows feet-inches. Does not change scale." },
+  { id: "origin", label: "Set origin", hint: "Click the zero point. Status bar then shows live XY." },
   { id: "outline", label: "New deck outline", hint: "Polygon. Double-click or Enter to close. Not the floating deck." },
 ];
 

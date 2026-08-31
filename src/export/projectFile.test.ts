@@ -36,6 +36,24 @@ describe("project file", () => {
     await expect(parseProjectText(projectJson(ok))).resolves.toMatchObject({ version: 1 });
   });
 
+  it("persists origin and typed waste percent", async () => {
+    const p = emptyProject();
+    p.origin = { x: 12, y: 34 };
+    p.settings.wastePercent = 10;
+    const round = await parseProjectText(projectJson(p));
+    expect(round.origin).toEqual({ x: 12, y: 34 });
+    expect(round.settings.wastePercent).toBe(10);
+  });
+
+  it("defaults missing origin and waste percent on old files", async () => {
+    const raw = JSON.parse(projectJson(emptyProject())) as { origin?: unknown; settings: { wastePercent?: unknown } };
+    delete raw.origin;
+    delete raw.settings.wastePercent;
+    const round = await parseProjectText(JSON.stringify(raw));
+    expect(round.origin).toBeNull();
+    expect(round.settings.wastePercent).toBeNull();
+  });
+
   it("Save with a handle writes that file and does not open a picker", async () => {
     const picker = vi.fn();
     vi.stubGlobal("showSaveFilePicker", picker);

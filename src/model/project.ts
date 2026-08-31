@@ -48,6 +48,7 @@ export function defaultSettings(): ProjectSettings {
       labels: true,
       railings: true,
     },
+    wastePercent: null,
   };
 }
 
@@ -57,6 +58,7 @@ export function emptyProject(): Project {
     settings: defaultSettings(),
     photo: null,
     scale: null,
+    origin: null,
     objects: [],
     flags: [],
   };

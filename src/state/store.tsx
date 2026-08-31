@@ -15,6 +15,7 @@ import { createBoxObject } from "../edit/typedBox";
 import { snapPoint } from "../geom/vec";
 import {
   deleteSelection,
+  type MeasureOverlay,
   type Selection,
 } from "../edit/handles";
 import {
@@ -27,10 +28,10 @@ import {
 
 const MAX_HISTORY = 80;
 
-type DrawTool = Exclude<Tool, "select" | "pan" | "scale">;
+type DrawTool = Exclude<Tool, "select" | "pan" | "scale" | "measure" | "origin">;
 
 function isDrawTool(t: Tool): t is DrawTool {
-  return t !== "select" && t !== "pan" && t !== "scale";
+  return t !== "select" && t !== "pan" && t !== "scale" && t !== "measure" && t !== "origin";
 }
 
 const POINT_PLACE_TOOLS = new Set<Tool>(["post", "nodigPoint"]);
@@ -61,6 +62,14 @@ interface Store {
   runFill: () => string | null;
   loadPhoto: (dataUrl: string, widthPx: number, heightPx: number) => void;
   setScale: (a: Point, b: Point, knownLengthIn: number) => void;
+  measure: MeasureOverlay | null;
+  setMeasure: (m: MeasureOverlay | null) => void;
+  finishMeasure: (a: Point, b: Point) => void;
+  setOrigin: (p: Point) => void;
+  cursorWorld: Point | null;
+  setCursorWorld: (p: Point | null) => void;
+  frameNonce: number;
+  selectAndFrame: (ids: Id[]) => void;
   newProject: () => void;
   openProject: (p: Project, file?: { fileName?: string; handle?: FileSystemFileHandle | null }) => void;
   updateObject: (id: Id, patch: Partial<PlannerObject>) => void;
@@ -89,6 +98,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [selectedIds, setSelectedIds] = useState<Id[]>([]);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [draftPoints, setDraftPoints] = useState<Point[]>([]);
+  const [measure, setMeasure] = useState<MeasureOverlay | null>(null);
+  const [cursorWorld, setCursorWorld] = useState<Point | null>(null);
+  const [frameNonce, setFrameNonce] = useState(0);
   const [fileName, setFileName] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
@@ -110,7 +122,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setSelectedIds([]);
       return;
     }
-    if (s.kind === "draft" || s.kind === "scale") {
+    if (s.kind === "draft" || s.kind === "scale" || s.kind === "datum" || s.kind === "measure") {
       setSelectedIds([]);
       return;
     }
@@ -121,6 +133,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSelectedIds(ids);
     setSelection(ids[0] ? { kind: "object", objectId: ids[0] } : null);
   }, []);
+
+  const selectAndFrame = useCallback((ids: Id[]) => {
+    select(ids);
+    setFrameNonce((n) => n + 1);
+  }, [select]);
   const past = useRef<Project[]>([]);
   const future = useRef<Project[]>([]);
   const transientFrom = useRef<Project | null>(null);
@@ -233,6 +250,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const cancelDraft = useCallback(() => setDraftPoints([]), []);
 
   const deleteSelected = useCallback(() => {
+    if (selection?.kind === "measure") {
+      setMeasure(null);
+      selectHandle(null);
+      return;
+    }
     if (selection) {
       const result = deleteSelection(project, selection, draftPoints);
       if (result.draftPoints) setDraftPoints(result.draftPoints);
@@ -269,6 +291,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [mutate, selectHandle],
   );
 
+  const setOrigin = useCallback(
+    (p: Point) => {
+      mutate((pr) => ({ ...pr, origin: p }));
+      setDraftPoints([]);
+      selectHandle({ kind: "datum", point: p });
+      setToolState("select");
+    },
+    [mutate, selectHandle],
+  );
+
+  const finishMeasure = useCallback(
+    (a: Point, b: Point) => {
+      setMeasure({ a, b });
+      setDraftPoints([]);
+      selectHandle({ kind: "measure", end: "b", point: b });
+      setToolState("select");
+    },
+    [selectHandle],
+  );
+
   const newProject = useCallback(() => {
     past.current = [];
     future.current = [];
@@ -276,6 +318,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSelectedIds([]);
     setSelection(null);
     setDraftPoints([]);
+    setMeasure(null);
+    setCursorWorld(null);
     setToolState("select");
     rememberOpenedFile(null, null);
   }, [rememberOpenedFile]);
@@ -287,6 +331,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSelectedIds([]);
     setSelection(null);
     setDraftPoints([]);
+    setMeasure(null);
+    setCursorWorld(null);
     setToolState("select");
     rememberOpenedFile(file?.fileName ?? null, file?.handle ?? null);
   }, [rememberOpenedFile]);
@@ -382,6 +428,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       selectedIds,
       selection,
       draftPoints,
+      measure,
+      setMeasure,
+      finishMeasure,
+      setOrigin,
+      cursorWorld,
+      setCursorWorld,
+      frameNonce,
+      selectAndFrame,
       setTool,
       select,
       selectHandle,
@@ -427,6 +481,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       dirty,
       endTransient,
       fileName,
+      finishMeasure,
+      frameNonce,
+      measure,
+      cursorWorld,
+      selectAndFrame,
+      setOrigin,
       draftPoints,
       finishDraft,
       loadPhoto,

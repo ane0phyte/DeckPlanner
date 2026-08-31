@@ -143,6 +143,22 @@ export function Toolbar() {
         >
           Draw box
         </button>
+        <button
+          type="button"
+          className={tool === "measure" ? "active" : ""}
+          onClick={() => setTool("measure")}
+          title="Click two points. Shows a dimension. Does not change scale."
+        >
+          Measure
+        </button>
+        <button
+          type="button"
+          className={tool === "origin" ? "active" : ""}
+          onClick={() => setTool("origin")}
+          title="Click the plan origin. Status bar then shows live cursor XY."
+        >
+          Set origin
+        </button>
       </div>
       <div className="toolbar-group">
         <button

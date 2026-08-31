@@ -1,6 +1,7 @@
 import { useStore } from "../state/store";
-import { LengthField, NumField, SelectField, TextField } from "./fields";
+import { Field, LengthField, NumField, SelectField, TextField } from "./fields";
 import { buildCutList } from "../export/cutlist";
+import { cutRowHighlighted } from "../edit/measure";
 import { formatInches } from "../units/length";
 import { dressedSize } from "../units/length";
 import type { PlannerObject } from "../model/types";
@@ -353,12 +354,31 @@ function ObjectInspector({
 }
 
 function CutListView() {
-  const { project } = useStore();
+  const { project, selectedIds, selectAndFrame, mutate } = useStore();
   const list = buildCutList(project);
+  const waste = project.settings.wastePercent;
   return (
     <section>
-      <h2>Cut list</h2>
+      <h2>Cut list / shopping</h2>
+      <Field label="Waste % (lumber + decking; empty = net only)">
+        <input
+          inputMode="decimal"
+          placeholder="empty = net only"
+          value={waste == null ? "" : String(waste)}
+          onChange={(e) => {
+            const t = e.target.value.trim();
+            mutate((p) => ({
+              ...p,
+              settings: {
+                ...p.settings,
+                wastePercent: t === "" ? null : Number.isNaN(Number(t)) ? p.settings.wastePercent : Number(t),
+              },
+            }));
+          }}
+        />
+      </Field>
       <p className="hint">{list.wasteNote}</p>
+      <p className="hint">Click a row to select those members on the canvas.</p>
       <table>
         <thead>
           <tr>
@@ -370,8 +390,16 @@ function CutListView() {
         </thead>
         <tbody>
           {list.lumber.map((r, i) => (
-            <tr key={i}>
-              <td>{r.qty}</td>
+            <tr
+              key={`${r.member}-${r.eachLength}-${i}`}
+              className={`cut-row${cutRowHighlighted(r.objectIds, selectedIds) ? " active" : ""}`}
+              onClick={() => r.objectIds.length && selectAndFrame(r.objectIds)}
+            >
+              <td>
+                {r.applyWaste && r.qtyWithWaste !== r.qty
+                  ? `${r.qty} net → ${r.qtyWithWaste}`
+                  : r.qty}
+              </td>
               <td>{r.member}</td>
               <td>{r.nominal}</td>
               <td>{r.eachLength}</td>
@@ -380,17 +408,25 @@ function CutListView() {
         </tbody>
       </table>
       <h3>1:1 hangers / fasteners</h3>
-      <ul>
+      <ul className="cut-counts">
         {list.counts.map((r, i) => (
-          <li key={i}>
+          <li
+            key={`${r.item}-${i}`}
+            className={`cut-row${cutRowHighlighted(r.objectIds, selectedIds) ? " active" : ""}`}
+            onClick={() => r.objectIds.length && selectAndFrame(r.objectIds)}
+          >
             {r.qty}× {r.item} — {r.product}
           </li>
         ))}
       </ul>
       <h3>Area / linear accessories</h3>
-      <ul>
+      <ul className="cut-counts">
         {list.accessories.map((r, i) => (
-          <li key={i}>
+          <li
+            key={`${r.item}-${i}`}
+            className={`cut-row${cutRowHighlighted(r.objectIds, selectedIds) ? " active" : ""}`}
+            onClick={() => r.objectIds.length && selectAndFrame(r.objectIds)}
+          >
             {r.item}: {r.layoutAmount} · {r.coverage} → {r.rollsOrBoxes}
           </li>
         ))}

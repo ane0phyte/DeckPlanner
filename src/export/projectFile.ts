@@ -31,7 +31,15 @@ export async function parseProjectText(text: string): Promise<Project> {
   if (data.version !== 1 || !data.settings || !Array.isArray(data.objects)) {
     throw new Error("Not a Deck Planner v1 project file.");
   }
-  return { ...data, objects: migrateProjectObjects(data.objects) };
+  return {
+    ...data,
+    origin: data.origin ?? null,
+    settings: {
+      ...data.settings,
+      wastePercent: data.settings.wastePercent ?? null,
+    },
+    objects: migrateProjectObjects(data.objects),
+  };
 }
 
 export async function readProjectFile(file: File): Promise<Project> {

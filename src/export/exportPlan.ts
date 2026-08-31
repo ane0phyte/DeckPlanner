@@ -98,12 +98,18 @@ function paintCutList(ctx: CanvasRenderingContext2D, project: Project, w: number
   let y = 150;
   ctx.font = "700 24px system-ui";
   ctx.fillStyle = "#1c1916";
-  ctx.fillText("Lumber (net lengths)", 48, y);
+  ctx.fillText(
+    list.wastePercent != null && list.wastePercent > 0
+      ? `Lumber (net → with ${list.wastePercent}% waste)`
+      : "Lumber (net lengths)",
+    48,
+    y,
+  );
   y += 36;
   ctx.font = "18px ui-monospace, monospace";
   for (const row of list.lumber) {
     ctx.fillText(
-      `${row.qty}×  ${row.member}  ${row.nominal}  ${row.eachLength}  (${row.netLinearFt.toFixed(1)} lf)  ${row.notes}`,
+      `${row.applyWaste && row.qtyWithWaste !== row.qty ? `${row.qty}→${row.qtyWithWaste}` : row.qty}×  ${row.member}  ${row.nominal}  ${row.eachLength}  (${row.netLinearFt.toFixed(1)} lf)  ${row.notes}`,
       48,
       y,
     );
