@@ -60,7 +60,6 @@ export function LeftPanel() {
               label={t.label}
               title={t.hint}
               active={tool === t.id}
-              className={t.id === "ledger" ? "place-ledger" : undefined}
               onClick={() => setTool(t.id as Tool)}
             />
           ))}
