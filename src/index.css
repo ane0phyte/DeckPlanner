@@ -483,6 +483,13 @@ button.linkish {
   margin-bottom: 0.2rem;
 }
 
+.shop-waste {
+  margin-top: 0.75rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;

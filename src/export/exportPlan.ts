@@ -136,19 +136,20 @@ function paintCutList(ctx: CanvasRenderingContext2D, project: Project, w: number
   y += 28;
   ctx.font = "700 24px system-ui";
   ctx.fillStyle = "#1c1916";
-  ctx.fillText(
-    shop.wastePercent != null && shop.wastePercent > 0
-      ? `Shopping list (whole-foot ceil, ${shop.wastePercent}% waste on lumber/decking)`
-      : "Shopping list (whole-foot ceil, net counts)",
-    48,
-    y,
-  );
+  ctx.fillText("Shopping list (store stock, packed cuts)", 48, y);
   y += 36;
   ctx.font = "18px ui-monospace, monospace";
   for (const line of shop.lines) {
     ctx.fillText(line.text, 48, y);
     y += 26;
     if (y > h - 80) break;
+  }
+  if (shop.wasteSummary) {
+    y += 10;
+    ctx.fillStyle = "#5c5346";
+    ctx.fillText(shop.wasteSummary, 48, y);
+    y += 26;
+    ctx.fillStyle = "#1c1916";
   }
   y += 30;
   ctx.fillStyle = "#7a5340";

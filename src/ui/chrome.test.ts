@@ -139,4 +139,15 @@ describe("left-column chrome", () => {
     expect(host!.querySelector(".tool-grid")).toBeTruthy();
     alert.mockRestore();
   });
+
+  it("has no type-in boxes on the shopping tab", async () => {
+    await renderApp();
+    clickTab(host!, "shop");
+    expect(headingTexts(host!)).toContain("Shopping list");
+    expect(host!.querySelector(".left-body input")).toBeNull();
+    expect(host!.querySelector('[data-section="shop"] input')).toBeNull();
+    expect(host!.textContent).not.toMatch(/Waste %/);
+    clickTab(host!, "settings");
+    expect(host!.querySelector(".left-body input")).not.toBeNull();
+  });
 });
