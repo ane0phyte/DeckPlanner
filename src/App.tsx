@@ -2,13 +2,14 @@ import { useEffect, useRef } from "react";
 import { StoreProvider, useStore } from "./state/store";
 import { Toolbar } from "./ui/Toolbar";
 import { LeftPanel } from "./ui/LeftPanel";
-import { RightPanel } from "./ui/RightPanel";
 import { PlanView } from "./canvas/PlanView";
 import { inchesPerUnit } from "./model/project";
 import { formatInches } from "./units/length";
 import { selectionLabel } from "./edit/handles";
 import { offsetFromOriginIn } from "./edit/measure";
 import { nudgeDeltaWorld } from "./edit/ortho";
+import { actionFromKey, isTypingTarget } from "./ui/hotkeys";
+
 function Shell() {
   const {
     project,
@@ -28,6 +29,7 @@ function Shell() {
     beginTransient,
     endTransient,
     nudgeSelected,
+    runFill,
   } = useStore();
   const heldArrows = useRef(new Set<string>());
   const iPerU = inchesPerUnit(project);
@@ -55,7 +57,7 @@ function Shell() {
         else void saveProject();
         return;
       }
-      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
+      if (isTypingTarget(t)) return;
       if (isArrow(e.key) && selectedIds.length) {
         e.preventDefault();
         const units = inchesPerUnit(project) ?? 1;
@@ -83,7 +85,24 @@ function Shell() {
       if (e.key === "Escape") {
         cancelDraft();
         setTool("select");
+        return;
       }
+      const action = actionFromKey(e.key, { ctrlOrMeta: e.ctrlKey || e.metaKey, alt: e.altKey });
+      if (!action) return;
+      e.preventDefault();
+      if (action.kind === "tool") {
+        setTool(action.tool);
+        return;
+      }
+      if (action.kind === "fill") {
+        const err = runFill();
+        if (err) window.alert(err);
+        return;
+      }
+      mutate((p) => ({
+        ...p,
+        settings: { ...p.settings, orthoSnap: !p.settings.orthoSnap },
+      }));
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (!isArrow(e.key)) return;
@@ -102,9 +121,11 @@ function Shell() {
     deleteSelected,
     endTransient,
     finishDraft,
+    mutate,
     nudgeSelected,
     project,
     redo,
+    runFill,
     saveProject,
     saveProjectAs,
     selectedIds,
@@ -154,7 +175,6 @@ function Shell() {
             </span>
           </footer>
         </div>
-        <RightPanel />
       </div>
     </div>
   );

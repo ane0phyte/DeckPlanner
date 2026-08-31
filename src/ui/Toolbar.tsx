@@ -8,6 +8,8 @@ import {
 } from "../export/exportPlan";
 import { preloadPhoto } from "../canvas/render";
 import { supportsOpenPicker } from "../export/projectFile";
+import { HotkeyButton, HotkeyLabel } from "./HotkeyButton";
+import { FILL_HOTKEY, ORTHO_HOTKEY, TOOL_HOTKEY, hotkeyTooltip } from "./hotkeys";
 
 export function Toolbar() {
   const {
@@ -121,18 +123,19 @@ export function Toolbar() {
         </button>
       </div>
       <div className="toolbar-group">
-        <button
-          type="button"
-          className={tool === "select" ? "active" : "select-cta"}
-          onClick={() => setTool("select")}
+        <HotkeyButton
+          letter={TOOL_HOTKEY.select}
+          label="Select"
           title="Click an object to select, then drag or Delete. Esc also returns here."
-        >
-          Select
-        </button>
+          active={tool === "select"}
+          className={tool === "select" ? "" : "select-cta"}
+          onClick={() => setTool("select")}
+        />
         <button
           type="button"
           className={project.settings.orthoSnap ? "active" : ""}
-          title="Orthogonal snap while placing or moving objects. Off = free angle / free 2D. Increment snap is separate."
+          data-hotkey={ORTHO_HOTKEY}
+          title={hotkeyTooltip("Ortho snap", ORTHO_HOTKEY)}
           onClick={() =>
             mutate((p) => ({
               ...p,
@@ -140,51 +143,46 @@ export function Toolbar() {
             }))
           }
         >
-          Ortho
+          <HotkeyLabel label="Ortho" letter={ORTHO_HOTKEY} />
         </button>
-        <button
-          type="button"
-          className={tool === "ledger" ? "active" : ""}
+        <HotkeyButton
+          letter={TOOL_HOTKEY.ledger}
+          label="Ledger"
+          active={tool === "ledger"}
           onClick={() => setTool("ledger")}
-        >
-          Ledger
-        </button>
-        <button
-          type="button"
-          className={tool === "box" ? "active" : ""}
-          onClick={() => setTool("box")}
+        />
+        <HotkeyButton
+          letter={TOOL_HOTKEY.box}
+          label="Draw box"
           title="Draw a rectangle, then move, resize, or rotate. Set type (stairs or board) after."
-        >
-          Draw box
-        </button>
-        <button
-          type="button"
-          className={tool === "measure" ? "active" : ""}
-          onClick={() => setTool("measure")}
+          active={tool === "box"}
+          onClick={() => setTool("box")}
+        />
+        <HotkeyButton
+          letter={TOOL_HOTKEY.measure}
+          label="Measure"
           title="Click two points. Shows a dimension. Does not change scale."
-        >
-          Measure
-        </button>
-        <button
-          type="button"
-          className={tool === "origin" ? "active" : ""}
-          onClick={() => setTool("origin")}
+          active={tool === "measure"}
+          onClick={() => setTool("measure")}
+        />
+        <HotkeyButton
+          letter={TOOL_HOTKEY.origin}
+          label="Set origin"
           title="Click the plan origin. Status bar then shows live cursor XY."
-        >
-          Set origin
-        </button>
+          active={tool === "origin"}
+          onClick={() => setTool("origin")}
+        />
       </div>
       <div className="toolbar-group">
-        <button
-          type="button"
+        <HotkeyButton
+          letter={FILL_HOTKEY}
+          label="Fill"
           className="primary"
           onClick={() => {
             const err = runFill();
             if (err) window.alert(err);
           }}
-        >
-          Fill
-        </button>
+        />
       </div>
       <div className="toolbar-group">
         <button type="button" onClick={() => void exportPlanPng(project)}>

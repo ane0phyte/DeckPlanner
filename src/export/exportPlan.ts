@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import type { Project } from "../model/types";
 import { inchesPerUnit } from "../model/project";
-import { buildCutList } from "./cutlist";
+import { buildCutList, buildShoppingList } from "./cutlist";
 import { formatInches } from "../units/length";
 import { drawPlanToCanvas } from "../canvas/render";
 import { drawElevationToCanvas } from "../canvas/elevation";
@@ -95,21 +95,16 @@ function paintCutList(ctx: CanvasRenderingContext2D, project: Project, w: number
     100,
   );
   const list = buildCutList(project);
+  const shop = buildShoppingList(project);
   let y = 150;
   ctx.font = "700 24px system-ui";
   ctx.fillStyle = "#1c1916";
-  ctx.fillText(
-    list.wastePercent != null && list.wastePercent > 0
-      ? `Lumber (net → with ${list.wastePercent}% waste)`
-      : "Lumber (net lengths)",
-    48,
-    y,
-  );
+  ctx.fillText("Lumber (net lengths)", 48, y);
   y += 36;
   ctx.font = "18px ui-monospace, monospace";
   for (const row of list.lumber) {
     ctx.fillText(
-      `${row.applyWaste && row.qtyWithWaste !== row.qty ? `${row.qty}→${row.qtyWithWaste}` : row.qty}×  ${row.member}  ${row.nominal}  ${row.eachLength}  (${row.netLinearFt.toFixed(1)} lf)  ${row.notes}`,
+      `${row.qty}×  ${row.member}  ${row.nominal}  ${row.eachLength}  (${row.netLinearFt.toFixed(1)} lf)  ${row.notes}`,
       48,
       y,
     );
@@ -137,6 +132,23 @@ function paintCutList(ctx: CanvasRenderingContext2D, project: Project, w: number
       y,
     );
     y += 26;
+  }
+  y += 28;
+  ctx.font = "700 24px system-ui";
+  ctx.fillStyle = "#1c1916";
+  ctx.fillText(
+    shop.wastePercent != null && shop.wastePercent > 0
+      ? `Shopping list (whole-foot ceil, ${shop.wastePercent}% waste on lumber/decking)`
+      : "Shopping list (whole-foot ceil, net counts)",
+    48,
+    y,
+  );
+  y += 36;
+  ctx.font = "18px ui-monospace, monospace";
+  for (const line of shop.lines) {
+    ctx.fillText(line.text, 48, y);
+    y += 26;
+    if (y > h - 80) break;
   }
   y += 30;
   ctx.fillStyle = "#7a5340";

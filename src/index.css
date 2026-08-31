@@ -120,7 +120,7 @@ button.select-cta {
 .main {
   flex: 1;
   display: grid;
-  grid-template-columns: 272px 1fr 320px;
+  grid-template-columns: 300px 1fr;
   min-height: 0;
 }
 
@@ -135,8 +135,90 @@ button.select-cta {
   border-right: 1px solid var(--line);
 }
 
-.right {
-  border-left: 1px solid var(--line);
+.stacked-left {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.left-tools {
+  flex-shrink: 0;
+  padding: 0.55rem 0.7rem 0.45rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.left-tools h2 {
+  margin-top: 0.15rem;
+}
+
+.left-rest {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.35rem 0.7rem 1.4rem;
+}
+
+.place-label {
+  margin: 0.45rem 0 0.25rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tool-actions {
+  margin-top: 0.4rem;
+}
+
+.fill-btn {
+  font-weight: 600;
+}
+
+u {
+  text-underline-offset: 2px;
+}
+
+.inspect-xy {
+  margin: 0.12rem 0;
+  font-size: 0.78rem;
+}
+
+.connect-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.2rem 0 0.45rem;
+}
+
+.connect-list li {
+  margin-bottom: 0.2rem;
+}
+
+button.linkish {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-2);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.collapsible {
+  margin-top: 0.35rem;
+}
+
+.collapsible > summary {
+  cursor: pointer;
+  color: var(--accent-2);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0.55rem 0 0.35rem;
+  list-style: none;
+}
+
+.collapsible > summary::-webkit-details-marker {
+  display: none;
 }
 
 .panel h2,
