@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { LayerId, Tool } from "../model/types";
 import { LAYER_LABELS } from "../model/types";
 import { useStore } from "../state/store";
 import { Field, LengthField, NumField, SelectField, TextField, Toggle } from "./fields";
 import { HotkeyButton, HotkeyLabel } from "./HotkeyButton";
-import { FILL_HOTKEY, ORTHO_HOTKEY, TOOL_HOTKEY, hotkeyTooltip } from "./hotkeys";
+import { FILL_HOTKEY, ORTHO_HOTKEY, PANE_HOTKEY, TOOL_HOTKEY, hotkeyTooltip, isTypingTarget, paneShortcutLabel, paneTabFromKey, paneTabTooltip } from "./hotkeys";
 import { InspectPanel } from "./InspectPanel";
 import { CutListSection, ElevationSection, FlagsSection, ShoppingListSection } from "./ListSections";
 
@@ -46,22 +46,45 @@ const OBJECT_TOOLS: { id: keyof typeof TOOL_HOTKEY; label: string; hint: string 
 export function LeftPanel() {
   const [tab, setTab] = useState<LeftTabId>("tools");
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const next = paneTabFromKey(e.key, {
+        ctrlOrMeta: e.ctrlKey || e.metaKey,
+        alt: e.altKey,
+        shift: e.shiftKey,
+      });
+      if (!next) return;
+      if (isTypingTarget(e.target)) return;
+      e.preventDefault();
+      setTab(next);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <aside className="panel left left-pane" data-left-tab={tab}>
       <div className="tabs left-tabs" role="tablist" aria-label="Left pane sections">
-        {LEFT_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            data-tab={t.id}
-            aria-selected={tab === t.id}
-            className={tab === t.id ? "active" : ""}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+        {LEFT_TABS.map((t) => {
+          const letter = PANE_HOTKEY[t.id];
+          const chord = paneShortcutLabel(letter);
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              data-tab={t.id}
+              data-pane-shortcut={letter}
+              aria-selected={tab === t.id}
+              className={tab === t.id ? "active" : ""}
+              title={paneTabTooltip(t.label, letter)}
+              onClick={() => setTab(t.id)}
+            >
+              <span className="tab-name">{t.label}</span>
+              <span className="tab-hint">{chord}</span>
+            </button>
+          );
+        })}
       </div>
       <div className="left-body">
         {tab === "tools" && <ToolsSection />}
