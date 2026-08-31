@@ -33,5 +33,7 @@ describe("cut list", () => {
     );
     expect(list.wasteNote).toMatch(/net only/i);
     expect(list.counts.every((c) => !/\b[A-Z]{2,}\d{3,}\b/.test(c.product))).toBe(true);
+    expect(list.counts.some((c) => c.item.startsWith("Post hole") && /XY \(/.test(c.notes))).toBe(true);
+    expect(list.lumber.some((r) => r.member === "Decking" && r.qty > 0)).toBe(true);
   });
 });

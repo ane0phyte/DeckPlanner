@@ -7,6 +7,7 @@ import {
   GUARD_HEIGHT_IN,
   GUARD_TRIGGER_HEIGHT_IN,
   JOIST_BEARING_ON_WOOD_METAL_IN,
+  JOIST_SPAN_R507_6,
   LIVE_PSF,
   STAIR_CLEAR_WIDTH_IN,
   STAIR_MAX_RISER_IN,
@@ -15,9 +16,10 @@ import {
   maxBeamCantileverIn,
   maxJoistCantilever,
   maxPostHeightIn,
-  smallestJoistForSpan,
+  nearestSpacing,
   type JoistSize,
 } from "./tables";
+import { joistBaySpansIn } from "../fill/joistSupport";
 
 let flagSeq = 0;
 function flag(
@@ -198,23 +200,54 @@ export function evaluateProject(project: Project): IrcFlag[] {
   }
 
   const joists = findByType(project, "joist");
+  const ledgerForSpan = findByType(project, "ledger")[0];
+  const beamsForSpan = findByType(project, "beam");
   for (const j of joists) {
-    const spanIn = dist(j.a, j.b) * iPerU;
     const spacing = project.settings.decking.maxJoistSpacingIn ?? 16;
+    const bays = ledgerForSpan
+      ? joistBaySpansIn(j, ledgerForSpan, beamsForSpan, iPerU)
+      : { maxBayIn: dist(j.a, j.b) * iPerU, cantileverIn: dist(j.a, j.b) * iPerU, supportCount: 0, backSpanIn: 0 };
+    const spanIn = bays.maxBayIn;
     if (j.nominalSize === "2x6" || j.nominalSize === "2x8" || j.nominalSize === "2x10" || j.nominalSize === "2x12") {
-      const sized = smallestJoistForSpan(spanIn, spacing);
-      const tableMax =
-        sized.size == null
-          ? sized.maxSpanIn
-          : sized.maxSpanIn;
-      if (sized.size == null) {
-        flags.push(flag("violation", "R507.6", sized.reason, [j.id]));
-      } else if (spanIn > tableMax + 1e-6) {
+      const col = nearestSpacing(spacing);
+      const tableMax = JOIST_SPAN_R507_6[j.nominalSize][col];
+      if (spanIn > tableMax + 1e-6) {
         flags.push(
           flag(
             "violation",
             "R507.6",
-            `${j.nominalSize} span ${formatInches(spanIn)} exceeds Table R507.6 at ${spacing} in o.c.`,
+            `${j.nominalSize} bay ${formatInches(spanIn)} exceeds Table R507.6 ${formatInches(tableMax)} at ${col} in o.c. Rim is not a beam.`,
+            [j.id],
+          ),
+        );
+      }
+      const back = bays.backSpanIn > 6 ? bays.backSpanIn : spanIn > 1 ? spanIn : tableMax;
+      const maxCant = maxJoistCantilever(j.nominalSize, back);
+      if (maxCant == null && bays.cantileverIn > 1) {
+        flags.push(
+          flag(
+            "violation",
+            "R507.6",
+            `Joist cantilever ${formatInches(bays.cantileverIn)} is NP in Table R507.6 vs back span ${formatInches(back)}. Rim is not a beam.`,
+            [j.id],
+          ),
+        );
+      } else if (maxCant != null && bays.cantileverIn > maxCant + 1e-6) {
+        flags.push(
+          flag(
+            "violation",
+            "R507.6",
+            `Joist cantilever ${formatInches(bays.cantileverIn)} exceeds Table R507.6 vs back span (max ${formatInches(maxCant)}). Rim is not a beam.`,
+            [j.id],
+          ),
+        );
+      }
+      if (bays.supportCount < 2 && beamsForSpan.length === 0) {
+        flags.push(
+          flag(
+            "warn",
+            "R507.6",
+            "Joist runs ledger → rim with no drop beam. Rim is not a load-bearing beam and has no posts.",
             [j.id],
           ),
         );
@@ -252,13 +285,20 @@ export function evaluateProject(project: Project): IrcFlag[] {
         [b.id],
       ),
     );
-    if (b.diagonal && b.source === "fill") {
-      flags.push(flag("violation", "—", "Fill must not create diagonal beams.", [b.id]));
-    }
   }
 
   const posts = findByType(project, "post");
   for (const p of posts) {
+    if (project.settings.heights.deckIn == null || project.settings.heights.gradeIn == null) {
+      flags.push(
+        flag(
+          "warn",
+          "R507.4",
+          "Type post height (deck − grade). 6x6 used because height is unset; 4x4 is only for short posts in Table R507.4.",
+          [p.id],
+        ),
+      );
+    }
     if (p.flaggedNoDig) {
       flags.push(
         flag(
