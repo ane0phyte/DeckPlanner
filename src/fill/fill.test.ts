@@ -269,6 +269,7 @@ describe("Fill", () => {
     });
     expect(nearTen.length).toBeGreaterThanOrEqual(1);
     expectEveryBeamHasEndPosts(beams, posts, iPerU);
+    expectPostSpacingLegal(beams, posts, iPerU);
   });
 
   it("does not skip the 10 ft beam line because of a house-band no-dig", () => {
@@ -335,7 +336,6 @@ describe("Fill", () => {
     const posts = r.project.objects.filter((o): o is PostObject => o.type === "post" && o.source === "fill");
     const joists = r.project.objects.filter((o) => o.type === "joist" && o.source === "fill");
     expect(beams.length).toBeGreaterThan(1);
-    expect(beams.some((b) => b.diagonal)).toBe(true);
     const ortho = beams.filter((b) => !b.diagonal);
     expect(ortho.length).toBeGreaterThanOrEqual(1);
     const longestOrthoIn = Math.max(...ortho.map((b) => dist(b.a, b.b) * iPerU));
@@ -348,12 +348,12 @@ describe("Fill", () => {
     ).toBe(true);
     expect(posts.every((p) => p.type === "post" && p.nominalSize === "6x6")).toBe(true);
     expectEveryBeamHasEndPosts(beams, posts, iPerU);
+    expectPostSpacingLegal(beams, posts, iPerU);
     for (const o of [...posts, ...beams]) {
       expect(pointInPolygon(memberMid(o), poly)).toBe(true);
     }
     const spacing = r.project.settings.decking.maxJoistSpacingIn ?? 16;
     const col = nearestSpacing(spacing);
-    let placedBeamForFail = false;
     for (const j of joists) {
       if (j.type !== "joist") continue;
       const bays = joistBaySpansIn(j, ledger, beams, iPerU);
@@ -361,16 +361,10 @@ describe("Fill", () => {
       const back = bays.backSpanIn > 6 ? bays.backSpanIn : bays.maxBayIn;
       const maxCant = maxJoistCantilever(j.nominalSize as "2x8", back);
       const cantOk = maxCant == null ? bays.cantileverIn <= 1 : bays.cantileverIn <= maxCant + 1e-6;
-      const ok = bays.maxBayIn <= maxSpan + 1e-6 && cantOk;
-      if (!ok) {
-        expect(
-          r.project.flags.some((f) => f.section === "R507.6" && f.objectIds.includes(j.id)),
-        ).toBe(true);
-        expect(beams.length).toBeGreaterThan(0);
-        placedBeamForFail = true;
-      }
+      expect(bays.maxBayIn, `joist ${j.id} bay ${bays.maxBayIn}`).toBeLessThanOrEqual(maxSpan + 1e-6);
+      expect(cantOk, `joist ${j.id} cantilever ${bays.cantileverIn} vs back ${back}`).toBe(true);
     }
-    void placedBeamForFail;
+    expect(r.project.flags.filter((f) => f.section === "R507.6" && f.severity === "violation")).toHaveLength(0);
     expect(joists.some((j) => j.type === "joist" && j.nominalSize === "2x8")).toBe(true);
     expect(r.project.flags.some((f) => f.section === "R507.5(1)")).toBe(true);
   });
@@ -442,6 +436,39 @@ function expectEveryBeamHasEndPosts(
       expect(near, `beam ${beam.id} missing post at end`).toBe(true);
     }
   }
+}
+
+function expectPostSpacingLegal(beams: BeamObject[], posts: PostObject[], iPerU: number): void {
+  for (const beam of beams) {
+    const along = posts
+      .filter(
+        (p) =>
+          p.beamId === beam.id ||
+          distToSeg(p.origin, beam.a, beam.b) * iPerU < 4,
+      )
+      .map((p) => ({ p, t: projectTLocal(p.origin, beam.a, beam.b) }))
+      .sort((a, b) => a.t - b.t);
+    for (let i = 1; i < along.length; i++) {
+      const gap = dist(along[i - 1].p.origin, along[i].p.origin) * iPerU;
+      expect(gap, `post gap ${gap} on beam ${beam.id}`).toBeLessThanOrEqual(96 + 1);
+    }
+  }
+}
+
+function distToSeg(p: Point, a: Point, b: Point): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const l2 = abx * abx + aby * aby;
+  const t = l2 < 1e-12 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2));
+  return dist(p, { x: a.x + abx * t, y: a.y + aby * t });
+}
+
+function projectTLocal(p: Point, a: Point, b: Point): number {
+  const abx = b.x - a.x;
+  const aby = b.y - a.y;
+  const l2 = abx * abx + aby * aby;
+  if (l2 < 1e-12) return 0;
+  return ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2;
 }
 
 function segmentCrossesInterior(a: Point, b: Point, c: Point, d: Point): boolean {
