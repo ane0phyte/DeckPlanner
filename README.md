@@ -45,7 +45,7 @@ npm run build
 9. **Undo** after edits. **Save** writes back to the same file after Open or a first Save (Chrome File System Access). **Save As** always picks a new name. **Ctrl/Cmd+S** / **Shift+S**. Filename and dirty `*` show in the toolbar. No account / cloud.
 10. **Export** Letter PDF (plan + cut list with shopping section + elevation) or PNG plan / cut list / elevation.
 
-The **left column** holds Tools (object buttons with single-key hotkeys) on top, then Inspect, IRC flags, Cut list, Shopping list, elevation, and remaining settings. There is no right pane — the canvas uses that width. Lists scroll in the left column.
+The **left column** is a section switcher (same idea as the old right pane): Tools, Inspect, IRC flags, Cut list, Shopping list, and Elevation (layers, directions, decking, project). Only the selected section fills the pane — Tools is not a permanent header. There is no right pane. The canvas uses that width. Hotkeys still work while another section is open; they do not force a tab switch.
 
 Single-key hotkeys (ignored while typing in an input): **V** Select, **H** Pan, **S** Set scale, **O** Set origin, **M** Measure, **D** Deck outline, **L** Ledger, **W** House wall, **P** Post, **B** Beam, **J** Joist, **K** Breaker, **X** Blocking, **R** Rim, **G** Guard, **N** No-dig zone, **U** No-dig point, **T** Stairs / box, **F** Fill, **A** Ortho snap. Repeat press re-enters the tool. **Ctrl/Cmd+S** save, Delete, arrows (nudge), and Esc are not stolen.
 
