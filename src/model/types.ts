@@ -301,7 +301,7 @@ export interface ProjectSettings {
   decking: DeckingSpec;
   accessories: Accessories;
   layers: Record<LayerId, boolean>;
-  /** Typed waste percent for lumber + decking. null or 0 = net only. No invented default. */
+  /** Kept for file compatibility. Shopping list ignores this and shows packed leftover instead. */
   wastePercent: number | null;
 }
 

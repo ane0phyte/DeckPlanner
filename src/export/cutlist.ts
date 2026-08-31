@@ -2,7 +2,17 @@ import type { Project } from "../model/types";
 import { findByType, inchesPerUnit, projectAreaSqIn } from "../model/project";
 import { dist } from "../geom/vec";
 import { formatInches } from "../units/length";
-import { areaWithWaste, qtyWithWaste } from "../edit/measure";
+import { qtyWithWaste } from "../edit/measure";
+import {
+  DECK_STOCK_FT,
+  DIM_STOCK_FT,
+  POST_STOCK_FT,
+  UNSET_POST_LEN_IN,
+  formatWasteLine,
+  packPieces,
+  shopLineText,
+  type PackPiece,
+} from "./stockPack";
 
 export interface LumberRow {
   member: string;
@@ -51,7 +61,7 @@ export function buildCutList(project: Project): CutList {
       lumber,
       counts: [],
       accessories: [],
-      wasteNote: "Set scale to produce a cut list. Waste = net only until you type a percent. No SKU catalog.",
+      wasteNote: "Set scale to produce a cut list. Cut list is net pieces. No SKU catalog.",
       wastePercent: wastePercent ?? null,
     };
   }
@@ -241,7 +251,8 @@ export function buildCutList(project: Project): CutList {
     },
   ];
 
-  const wasteNote = "Cut list is net pieces (no waste). Type a waste % on the shopping list for buy quantities. Hangers stay 1:1. No SKU catalog.";
+  const wasteNote =
+    "Cut list is net pieces (no waste). Shopping list packs those cuts onto store stick lengths. Hangers stay 1:1. No SKU catalog.";
 
   return {
     lumber: lumber.filter((r) => r.qty > 0),
@@ -258,140 +269,130 @@ export interface ShopLine {
   kind: "lumber" | "hardware" | "decking";
 }
 
+export interface ShopWaste {
+  size: string;
+  leftoverIn: number;
+  percent: number;
+  text: string;
+}
+
 export interface ShoppingList {
   lines: ShopLine[];
-  wastePercent: number | null;
+  waste: ShopWaste[];
+  wasteSummary: string;
   note: string;
 }
 
-export function ceilWholeFeet(netInches: number): number {
-  if (netInches <= 0) return 0;
-  return Math.max(1, Math.ceil(netInches / 12 - 1e-9));
+type SizeKind = "dim" | "post" | "decking";
+
+interface SizeBucket {
+  size: string;
+  kind: SizeKind;
+  pieces: PackPiece[];
 }
 
-function addShopGroup(
-  map: Map<string, { qty: number; ids: string[]; format: (qty: number) => string; kind: ShopLine["kind"] }>,
-  key: string,
-  ids: string[],
-  format: (qty: number) => string,
-  kind: ShopLine["kind"],
-): void {
-  const g = map.get(key) ?? { qty: 0, ids: [], format, kind };
-  g.qty += ids.length;
-  g.ids.push(...ids);
-  map.set(key, g);
+function addPiece(buckets: Map<string, SizeBucket>, size: string, kind: SizeKind, piece: PackPiece): void {
+  const key = `${kind}|${size}`;
+  const g = buckets.get(key) ?? { size, kind, pieces: [] };
+  g.pieces.push(piece);
+  buckets.set(key, g);
 }
 
-/** Consolidated buy list. Waste rounds lumber/decking counts up. No SKU catalog. */
+function stockFor(kind: SizeKind): readonly number[] {
+  if (kind === "post") return POST_STOCK_FT;
+  if (kind === "decking") return DECK_STOCK_FT;
+  return DIM_STOCK_FT;
+}
+
+function bucketSortKey(b: SizeBucket): string {
+  if (b.kind === "decking") return `2|${b.size}`;
+  if (b.kind === "post") return `1|${b.size}`;
+  return `0|${b.size}`;
+}
+
+const SHOP_NOTE =
+  "Store stick lengths packed from net cuts. Waste is leftover after packing (1/8\" kerf), not a typed percent. Hangers 1:1. No SKU catalog.";
+
+/** Buy list: pack net cuts onto HD/Lowe’s stock. Ignore settings.wastePercent. */
 export function buildShoppingList(project: Project): ShoppingList {
   const iPerU = inchesPerUnit(project);
-  const wastePercent = project.settings.wastePercent;
-  const lines: ShopLine[] = [];
-  const note =
-    wastePercent != null && wastePercent > 0
-      ? `Waste ${wastePercent}% (typed). Lumber/decking counts rounded up. Lengths are whole-foot ceil of net inches. Hangers 1:1. No SKU catalog.`
-      : "Waste = net only. Type a waste % to add extra lumber/decking. Hangers stay 1:1. No SKU catalog.";
+  const empty: ShoppingList = { lines: [], waste: [], wasteSummary: "", note: SHOP_NOTE };
   if (!iPerU) {
-    return { lines, wastePercent: wastePercent ?? null, note: "Set scale to produce a shopping list. " + note };
+    return { ...empty, note: "Set scale to produce a shopping list. " + SHOP_NOTE };
   }
 
-  const groups = new Map<
-    string,
-    { qty: number; ids: string[]; format: (qty: number) => string; kind: ShopLine["kind"] }
-  >();
+  const buckets = new Map<string, SizeBucket>();
 
   const postH =
     project.settings.heights.deckIn != null && project.settings.heights.gradeIn != null
       ? Math.max(0, project.settings.heights.deckIn - project.settings.heights.gradeIn)
       : null;
   const posts = findByType(project, "post");
-  const postsBySize = new Map<string, typeof posts>();
   for (const p of posts) {
-    const k = p.nominalSize || "post";
-    const list = postsBySize.get(k) ?? [];
-    list.push(p);
-    postsBySize.set(k, list);
+    const size = p.nominalSize || "6x6";
+    const len = postH != null && postH > 0 ? postH : UNSET_POST_LEN_IN;
+    addPiece(buckets, size, "post", { lenIn: len, objectId: p.id });
   }
-  for (const [size, list] of postsBySize) {
-    const ids = list.map((p) => p.id);
-    if (postH != null && postH > 0) {
-      const ft = ceilWholeFeet(postH);
-      addShopGroup(groups, `post|${size}|${ft}`, ids, (q) => `${q} — ${size} × ${ft}'`, "lumber");
-    } else {
-      addShopGroup(groups, `post|${size}|`, ids, (q) => `${q} — ${size} posts`, "lumber");
-    }
-  }
-
-  const pushLen = (
-    member: string,
-    nominal: string,
-    pieces: { len: number; id: string }[],
-  ) => {
-    const byFt = new Map<number, { ids: string[] }>();
-    for (const piece of pieces) {
-      const ft = ceilWholeFeet(piece.len);
-      const g = byFt.get(ft) ?? { ids: [] };
-      g.ids.push(piece.id);
-      byFt.set(ft, g);
-    }
-    for (const [ft, g] of byFt) {
-      addShopGroup(
-        groups,
-        `${member}|${nominal}|${ft}`,
-        g.ids,
-        (q) => `${q} — ${nominal} ${member} × ${ft}'`,
-        "lumber",
-      );
-    }
-  };
 
   const joists = findByType(project, "joist");
-  pushLen(
-    "joist",
-    joists[0]?.nominalSize ?? "2x8",
-    joists.flatMap((j) => {
-      const L = dist(j.a, j.b) * iPerU;
-      return j.doubled ? [{ len: L, id: j.id }, { len: L, id: j.id }] : [{ len: L, id: j.id }];
-    }),
-  );
+  for (const j of joists) {
+    const L = dist(j.a, j.b) * iPerU;
+    const size = j.nominalSize || "2x8";
+    addPiece(buckets, size, "dim", { lenIn: L, objectId: j.id });
+    if (j.doubled) addPiece(buckets, size, "dim", { lenIn: L, objectId: j.id });
+  }
 
   for (const b of findByType(project, "beam")) {
     const L = dist(b.a, b.b) * iPerU;
-    pushLen(
-      `${b.plyCount}-ply beam`,
-      b.nominalSize,
-      Array.from({ length: b.plyCount }, () => ({ len: L, id: b.id })),
-    );
+    const size = b.nominalSize || "2x10";
+    for (let i = 0; i < b.plyCount; i++) {
+      addPiece(buckets, size, "dim", { lenIn: L, objectId: b.id });
+    }
   }
 
-  pushLen(
-    "rim",
-    findByType(project, "rim")[0]?.nominalSize ?? "2x8",
-    findByType(project, "rim").map((r) => ({ len: dist(r.a, r.b) * iPerU, id: r.id })),
-  );
-  pushLen(
-    "blocking",
-    findByType(project, "blocking")[0]?.nominalSize ?? "2x8",
-    findByType(project, "blocking").map((r) => ({ len: dist(r.a, r.b) * iPerU, id: r.id })),
-  );
-  pushLen(
-    "ledger",
-    findByType(project, "ledger")[0]?.nominalSize ?? "2x8",
-    findByType(project, "ledger").map((r) => ({ len: dist(r.a, r.b) * iPerU, id: r.id })),
-  );
+  for (const r of findByType(project, "rim")) {
+    addPiece(buckets, r.nominalSize || "2x8", "dim", { lenIn: dist(r.a, r.b) * iPerU, objectId: r.id });
+  }
+  for (const r of findByType(project, "blocking")) {
+    addPiece(buckets, r.nominalSize || "2x8", "dim", { lenIn: dist(r.a, r.b) * iPerU, objectId: r.id });
+  }
+  for (const r of findByType(project, "ledger")) {
+    addPiece(buckets, r.nominalSize || "2x8", "dim", { lenIn: dist(r.a, r.b) * iPerU, objectId: r.id });
+  }
 
   const boards = findByType(project, "board");
-
-  for (const g of groups.values()) {
-    const qty = g.kind === "lumber" ? qtyWithWaste(g.qty, wastePercent) : g.qty;
-    if (qty <= 0) continue;
-    lines.push({ text: g.format(qty), objectIds: g.ids, kind: g.kind });
+  for (const b of boards) {
+    addPiece(buckets, "decking", "decking", { lenIn: dist(b.a, b.b) * iPerU, objectId: b.id });
   }
 
-  const hangers = joists.length;
-  if (hangers) {
+  const lines: ShopLine[] = [];
+  const waste: ShopWaste[] = [];
+  const ordered = [...buckets.values()].sort((a, b) => bucketSortKey(a).localeCompare(bucketSortKey(b)));
+  for (const bucket of ordered) {
+    const packed = packPieces(bucket.pieces, stockFor(bucket.kind));
+    const kind: ShopLine["kind"] = bucket.kind === "decking" ? "decking" : "lumber";
+    for (const buy of packed.buys) {
+      if (buy.qty <= 0) continue;
+      lines.push({
+        text: shopLineText(buy.qty, bucket.size, buy.stockFt, buy.exceededMax),
+        objectIds: buy.objectIds,
+        kind,
+      });
+    }
+    if (packed.stockIn > 0) {
+      const text = formatWasteLine(bucket.size, packed.leftoverIn, packed.percent);
+      waste.push({
+        size: bucket.size,
+        leftoverIn: packed.leftoverIn,
+        percent: packed.percent,
+        text,
+      });
+    }
+  }
+
+  if (joists.length) {
     lines.push({
-      text: `${hangers} — joist hangers`,
+      text: `${joists.length} — joist hangers`,
       objectIds: joists.map((j) => j.id),
       kind: "hardware",
     });
@@ -405,24 +406,10 @@ export function buildShoppingList(project: Project): ShoppingList {
     });
   }
 
-  const areaSqFt = projectAreaSqIn(project, iPerU) / 144;
-  const boardW = project.settings.decking.boardWidthIn;
-  const gapIn = project.settings.decking.gapIn ?? 0;
-  const deckingSqFt = boardW > 0 ? areaSqFt * (boardW / (boardW + gapIn)) : areaSqFt;
-  const deckingBuy = areaWithWaste(deckingSqFt, wastePercent);
-  const product = project.settings.decking.productName.trim() || "decking";
-  const outline = findByType(project, "outline")[0];
-  if (deckingSqFt > 0) {
-    const wasteBit =
-      wastePercent != null && wastePercent > 0
-        ? ` (${deckingSqFt.toFixed(1)} sf net → ${deckingBuy.toFixed(1)} sf w/ ${wastePercent}%)`
-        : ` (${deckingSqFt.toFixed(1)} sf net)`;
-    lines.push({
-      text: `${product}${wasteBit}`,
-      objectIds: outline ? [outline.id] : boards.map((b) => b.id),
-      kind: "decking",
-    });
-  }
-
-  return { lines, wastePercent: wastePercent ?? null, note };
+  return {
+    lines,
+    waste,
+    wasteSummary: waste.map((w) => w.text).join(" · "),
+    note: SHOP_NOTE,
+  };
 }

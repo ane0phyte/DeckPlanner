@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { useStore } from "../state/store";
-import { Field, LengthField, TextField } from "./fields";
 import { buildCutList, buildShoppingList } from "../export/cutlist";
 import { cutRowHighlighted } from "../edit/measure";
 import { formatInches } from "../units/length";
@@ -81,29 +80,11 @@ export function CutListSection() {
 }
 
 export function ShoppingListSection() {
-  const { project, selectedIds, selectAndFrame, mutate } = useStore();
+  const { project, selectedIds, selectAndFrame } = useStore();
   const shop = buildShoppingList(project);
-  const waste = project.settings.wastePercent;
   return (
-    <section>
+    <section data-section="shop">
       <h2>{SHOPPING_HEADING}</h2>
-      <Field label="Waste % (lumber + decking; empty = net only)">
-        <input
-          inputMode="decimal"
-          placeholder="empty = net only"
-          value={waste == null ? "" : String(waste)}
-          onChange={(e) => {
-            const t = e.target.value.trim();
-            mutate((p) => ({
-              ...p,
-              settings: {
-                ...p.settings,
-                wastePercent: t === "" ? null : Number.isNaN(Number(t)) ? p.settings.wastePercent : Number(t),
-              },
-            }));
-          }}
-        />
-      </Field>
       <p className="hint">{shop.note}</p>
       <ul className="cut-counts">
         {shop.lines.map((r, i) => (
@@ -116,48 +97,11 @@ export function ShoppingListSection() {
           </li>
         ))}
       </ul>
-      <TextField
-        label="Hanger product (1:1 count)"
-        value={project.settings.accessories.hangerProduct}
-        onChange={(v) =>
-          mutate((p) => ({
-            ...p,
-            settings: { ...p.settings, accessories: { ...p.settings.accessories, hangerProduct: v } },
-          }))
-        }
-      />
-      <TextField
-        label="Flashing product"
-        value={project.settings.flashingProduct}
-        placeholder="Type name — do not invent"
-        onChange={(v) => mutate((p) => ({ ...p, settings: { ...p.settings, flashingProduct: v } }))}
-      />
-      <LengthField
-        label="Flashing coverage sf / roll (user)"
-        value={project.settings.accessories.flashingCoverageSqFtPerRoll}
-        onChange={(v) =>
-          mutate((p) => ({
-            ...p,
-            settings: {
-              ...p.settings,
-              accessories: { ...p.settings.accessories, flashingCoverageSqFtPerRoll: v },
-            },
-          }))
-        }
-      />
-      <LengthField
-        label="Guard lin ft / box (user)"
-        value={project.settings.accessories.guardLinearFtPerBox}
-        onChange={(v) =>
-          mutate((p) => ({
-            ...p,
-            settings: {
-              ...p.settings,
-              accessories: { ...p.settings.accessories, guardLinearFtPerBox: v },
-            },
-          }))
-        }
-      />
+      {shop.wasteSummary ? (
+        <p className="shop-waste" data-shop-waste="">
+          {shop.wasteSummary}
+        </p>
+      ) : null}
     </section>
   );
 }

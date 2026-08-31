@@ -38,7 +38,7 @@ describe("cut list", () => {
     expect(list.lumber.some((r) => r.member === "Decking" && r.qty > 0)).toBe(true);
   });
 
-  it("leaves decking area at net on the cut list; shopping list adds typed waste", () => {
+  it("leaves decking area at net on the cut list; shopping packs boards not a typed waste %", () => {
     const p = emptyProject();
     p.scale = { a: { x: 0, y: 0 }, b: { x: 12, y: 0 }, knownLengthIn: 12 };
     p.settings.decking.productName = "Trex";
@@ -52,6 +52,14 @@ describe("cut list", () => {
         { x: 144, y: 144 },
         { x: 0, y: 144 },
       ])!,
+      createUserObject("board", [
+        { x: 0, y: 0 },
+        { x: 72, y: 0 },
+      ])!,
+      createUserObject("board", [
+        { x: 0, y: 6 },
+        { x: 72, y: 6 },
+      ])!,
     ];
     const net = buildCutList(p);
     const deckNet = net.accessories.find((a) => a.item.includes("Decking surface"))!;
@@ -63,13 +71,19 @@ describe("cut list", () => {
     );
     p.settings.wastePercent = 10;
     const shop = buildShoppingList(p);
-    expect(shop.lines.some((l) => /Trex/.test(l.text) && /158\.4/.test(l.text) && /10%/.test(l.text))).toBe(true);
-    expect(shop.note).toMatch(/10%/);
+    expect(shop.lines.some((l) => /Trex/.test(l.text))).toBe(false);
+    expect(shop.lines.some((l) => /158\.4/.test(l.text))).toBe(false);
+    expect(shop.note).not.toMatch(/10%/);
+    expect(shop.wasteSummary).not.toMatch(/10%/);
+    expect(shop.lines.filter((l) => /decking × 12'/.test(l.text))).toHaveLength(1);
+    expect(shop.lines.find((l) => /decking × 12'/.test(l.text))!.text).toMatch(/^1 — decking × 12'$/);
+    expect(shop.lines.some((l) => /decking × 16'/.test(l.text))).toBe(false);
+    expect(shop.wasteSummary).toMatch(/decking waste/);
     const hangers = buildCutList(p).counts.find((c) => c.item.includes("hangers"))!;
     expect(hangers.qty).toBe(net.counts.find((c) => c.item.includes("hangers"))!.qty);
   });
 
-  it("groups identical posts on the shopping list as one line", () => {
+  it("groups identical unset-height posts as 8' stock", () => {
     const p = emptyProject();
     p.scale = { a: { x: 0, y: 0 }, b: { x: 12, y: 0 }, knownLengthIn: 12 };
     const a = createUserObject("post", [{ x: 0, y: 0 }])! as PostObject;
@@ -78,13 +92,13 @@ describe("cut list", () => {
     b.nominalSize = "6x6";
     p.objects = [a, b];
     const shop = buildShoppingList(p);
-    const postLines = shop.lines.filter((l) => /6x6/.test(l.text) && /post/i.test(l.text));
+    const postLines = shop.lines.filter((l) => /6x6/.test(l.text));
     expect(postLines).toHaveLength(1);
-    expect(postLines[0].text).toMatch(/^2 — 6x6 posts$/);
+    expect(postLines[0].text).toMatch(/^2 — 6x6 × 8'$/);
     expect(postLines[0].objectIds).toHaveLength(2);
   });
 
-  it("rounds shopping lumber counts up with typed waste and does not invent post length", () => {
+  it("ignores typed waste percent and packs a set post height onto 8/10/12 stock", () => {
     const p = emptyProject();
     p.scale = { a: { x: 0, y: 0 }, b: { x: 12, y: 0 }, knownLengthIn: 12 };
     const a = createUserObject("post", [{ x: 0, y: 0 }])! as PostObject;
@@ -94,15 +108,32 @@ describe("cut list", () => {
     p.objects = [a, b];
     p.settings.wastePercent = 10;
     const shop = buildShoppingList(p);
-    const postLines = shop.lines.filter((l) => /6x6/.test(l.text) && /post/i.test(l.text));
+    const postLines = shop.lines.filter((l) => /6x6/.test(l.text));
     expect(postLines).toHaveLength(1);
-    expect(postLines[0].text).toMatch(/^3 — 6x6 posts$/);
+    expect(postLines[0].text).toMatch(/^2 — 6x6 × 8'$/);
     p.settings.heights.deckIn = 72;
     p.settings.heights.gradeIn = 0;
     p.settings.wastePercent = null;
     const withH = buildShoppingList(p).lines.filter((l) => /6x6/.test(l.text));
     expect(withH).toHaveLength(1);
-    expect(withH[0].text).toMatch(/^2 — 6x6 × 6'$/);
+    expect(withH[0].text).toMatch(/^2 — 6x6 × 8'$/);
+  });
+
+  it("buys a 10' 2x8 for a 9'-6\" joist, not a 16'", () => {
+    const p = emptyProject();
+    p.scale = { a: { x: 0, y: 0 }, b: { x: 12, y: 0 }, knownLengthIn: 12 };
+    p.objects = [
+      createUserObject("joist", [
+        { x: 0, y: 0 },
+        { x: 114, y: 0 },
+      ])!,
+    ];
+    const shop = buildShoppingList(p);
+    const lumber = shop.lines.filter((l) => l.kind === "lumber");
+    expect(lumber.some((l) => /^1 — 2x8 × 10'$/.test(l.text))).toBe(true);
+    expect(lumber.some((l) => /× 16'/.test(l.text))).toBe(false);
+    expect(shop.wasteSummary).toMatch(/2x8 waste/);
+    expect(shop.waste[0]?.leftoverIn).toBeGreaterThan(0);
   });
 
   it("puts object ids on lumber rows so a click can select them", () => {
