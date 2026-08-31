@@ -36,6 +36,7 @@ import {
   shouldOrthoDraw,
   skipAngleSnap,
 } from "../edit/ortho";
+import { mergeCollinearBeams, snapBeamEndsInProject, snapPointToPostInProject } from "../edit/beamSnap";
 
 const TOOL_HINTS: Partial<Record<string, string>> = {
   ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
@@ -95,6 +96,9 @@ export function PlanView() {
     id?: string;
     handle?: Handle;
     moved: boolean;
+    lockA?: string | null;
+    lockB?: string | null;
+    lockPostId?: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -240,8 +244,15 @@ export function PlanView() {
     if (tool === "ledger" || tool === "houseWall" || tool === "beam" || tool === "joist" || tool === "board" || tool === "guard" || tool === "rim" || tool === "breaker" || tool === "blocking") {
       setPicker(null);
       if (draftPoints.length === 0) {
-        addDraftPoint(p);
-        drag.current = { mode: "draw-line", last: applySnap(p), start: applySnap(p), moved: false };
+        let start = applySnap(p);
+        let lockA: string | null = null;
+        if (tool === "beam") {
+          const s = snapPointToPostInProject(start, project);
+          start = s.point;
+          lockA = s.postId;
+        }
+        addDraftPoint(start);
+        drag.current = { mode: "draw-line", last: start, start, moved: false, lockA };
       } else {
         addDraftPoint(p);
       }
@@ -328,6 +339,11 @@ export function PlanView() {
         } else if (h.kind === "origin") {
           dest = add(start, maybeConstrainDelta(sub(raw, start), pr));
         }
+        if (h.kind === "endpoint" && obj?.type === "beam" && obj.source !== "fill") {
+          const s = snapPointToPostInProject(dest, pr, drag.current?.lockPostId);
+          dest = s.point;
+          if (drag.current) drag.current.lockPostId = s.postId;
+        }
         return moveHandle(pr, h, dest);
       });
       drag.current.last = raw;
@@ -340,6 +356,11 @@ export function PlanView() {
       let p = raw;
       if (drag.current.mode === "draw-line" && drag.current.start && shouldOrthoDraw(tool)) {
         p = maybeSnapSecondPoint(drag.current.start, raw, tool, project);
+      }
+      if (drag.current.mode === "draw-line" && tool === "beam") {
+        const s = snapPointToPostInProject(p, project, drag.current.lockB);
+        p = s.point;
+        drag.current.lockB = s.postId;
       }
       drag.current.last = p;
       setDraftPoint(1, p);
@@ -364,11 +385,26 @@ export function PlanView() {
       drag.current.applied = constrained;
       const id = drag.current.id;
       const orthoOn = project.settings.orthoSnap;
+      const lockA = drag.current.lockA;
+      const lockB = drag.current.lockB;
       preview((pr) => {
-        const next = translateObject(pr, id, step);
+        const translated = translateObject(pr, id, step);
+        const aligned = {
+          ...translated,
+          objects: translated.objects.map((o) => (o.id === id ? maybeAxisAlignLedger(o, orthoOn) : o)),
+        };
+        const obj = aligned.objects.find((o) => o.id === id);
+        if (obj?.type !== "beam" || obj.source === "fill") return aligned;
+        const s = snapBeamEndsInProject(obj.a, obj.b, aligned, { a: lockA, b: lockB });
+        if (drag.current) {
+          drag.current.lockA = s.lockA;
+          drag.current.lockB = s.lockB;
+        }
         return {
-          ...next,
-          objects: next.objects.map((o) => (o.id === id ? maybeAxisAlignLedger(o, orthoOn) : o)),
+          ...aligned,
+          objects: aligned.objects.map((o) =>
+            o.id === id && o.type === "beam" ? { ...o, a: s.a, b: s.b } : o,
+          ),
         };
       });
     }
@@ -382,6 +418,13 @@ export function PlanView() {
     }
     if (drag.current?.mode === "move-object" || drag.current?.mode === "move-handle") {
       if (drag.current.moved && drag.current.handle?.kind !== "draft") {
+        const id = drag.current.id ?? (drag.current.handle && "objectId" in drag.current.handle ? drag.current.handle.objectId : undefined);
+        if (id) {
+          preview((pr) => {
+            const obj = pr.objects.find((o) => o.id === id);
+            return obj?.type === "beam" ? mergeCollinearBeams(pr, id) : pr;
+          });
+        }
         endTransient();
       }
     }

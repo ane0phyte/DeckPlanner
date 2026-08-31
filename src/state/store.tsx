@@ -15,6 +15,7 @@ import { createBoxObject } from "../edit/typedBox";
 import { translateObject } from "../edit/handles";
 import { objectPickPoint } from "../edit/hit";
 import { maybeSnapSecondPoint, shouldOrthoDraw } from "../edit/ortho";
+import { mergeCollinearBeams, snapBeamEndsInProject, snapPointToPostInProject } from "../edit/beamSnap";
 import { snapPoint } from "../geom/vec";
 import {
   deleteSelection,
@@ -201,7 +202,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (obj.type === "stairs" && project.settings.heights.stairRiseIn != null) {
         obj.riseIn = project.settings.heights.stairRiseIn;
       }
-      mutate((pr) => ({ ...pr, objects: [...pr.objects, obj] }));
+      mutate((pr) => {
+        let placed = obj;
+        if (placed.type === "beam") {
+          const snapped = snapBeamEndsInProject(placed.a, placed.b, pr);
+          placed = { ...placed, a: snapped.a, b: snapped.b };
+        }
+        const next = { ...pr, objects: [...pr.objects, placed] };
+        return placed.type === "beam" ? mergeCollinearBeams(next, placed.id) : next;
+      });
       select([obj.id]);
       setDraftPoints([]);
       if (!POLYGON_TOOLS.has(kind)) setToolState("select");
@@ -214,6 +223,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       let snapped = applySnap(p);
       if (draftPoints.length === 1 && shouldOrthoDraw(tool)) {
         snapped = maybeSnapSecondPoint(draftPoints[0], snapped, tool, project);
+      }
+      if (tool === "beam") {
+        snapped = snapPointToPostInProject(snapped, project).point;
       }
       if (POINT_PLACE_TOOLS.has(tool) && isDrawTool(tool)) {
         commitDrawnObject(tool, [snapped]);
@@ -231,9 +243,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const completeLine = useCallback(
     (end: Point, start?: Point) => {
-      const a = start ?? draftPoints[0];
+      let a = start ?? draftPoints[0];
       if (!isDrawTool(tool) || !a) return;
-      const b = maybeSnapSecondPoint(a, applySnap(end), tool, project);
+      let b = maybeSnapSecondPoint(a, applySnap(end), tool, project);
+      if (tool === "beam") {
+        const snapped = snapBeamEndsInProject(a, b, project);
+        a = snapped.a;
+        b = snapped.b;
+      }
       if (Math.hypot(b.x - a.x, b.y - a.y) < 2) return;
       commitDrawnObject(tool, [a, b]);
     },
