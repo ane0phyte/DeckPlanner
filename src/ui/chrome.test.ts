@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 import "../index.css";
 
@@ -103,5 +103,40 @@ describe("left-column chrome", () => {
     expect(host!.textContent).toMatch(/Tool: beam/);
     expect(host!.querySelector(".tool-grid")).toBeNull();
     expect(headingTexts(host!)).toContain("Shopping list");
+  });
+
+  it("switches left pane with Ctrl+I / Ctrl+T and does not treat Ctrl+S as Tools", async () => {
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    await renderApp();
+    const toolsTab = host!.querySelector('[data-tab="tools"]');
+    expect(toolsTab?.getAttribute("title")).toMatch(/Ctrl\+T/);
+    expect(toolsTab?.textContent).toMatch(/Tools/);
+    expect(toolsTab?.textContent).toMatch(/Ctrl\+T/);
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "i", ctrlKey: true, bubbles: true, cancelable: true }),
+      );
+    });
+    expect(host!.querySelector("[data-left-tab]")?.getAttribute("data-left-tab")).toBe("inspect");
+    expect(host!.textContent).toMatch(/select an object/i);
+    expect(host!.querySelector(".tool-grid")).toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true }),
+      );
+    });
+    expect(host!.querySelector("[data-left-tab]")?.getAttribute("data-left-tab")).toBe("inspect");
+    expect(alert).toHaveBeenCalled();
+
+    await act(async () => {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "t", ctrlKey: true, bubbles: true, cancelable: true }),
+      );
+    });
+    expect(host!.querySelector("[data-left-tab]")?.getAttribute("data-left-tab")).toBe("tools");
+    expect(host!.querySelector(".tool-grid")).toBeTruthy();
+    alert.mockRestore();
   });
 });

@@ -82,3 +82,46 @@ export function firstUnusedLetter(label: string, extraUsed: string[] = []): stri
   }
   return "Z";
 }
+
+/** Left-pane section switcher. Ctrl/Cmd preferred; Alt is the Chrome fallback (Ctrl+T opens a tab). */
+export const PANE_HOTKEY = {
+  tools: "T",
+  inspect: "I",
+  flags: "G",
+  cut: "U",
+  shop: "B",
+  settings: "E",
+} as const;
+
+export type PaneTabId = keyof typeof PANE_HOTKEY;
+
+const PANE_BY_LETTER = new Map<string, PaneTabId>();
+for (const [tab, letter] of Object.entries(PANE_HOTKEY)) {
+  PANE_BY_LETTER.set(letter.toLowerCase(), tab as PaneTabId);
+}
+
+export function paneShortcutLabel(letter: string): string {
+  return `Ctrl+${letter.toUpperCase()}`;
+}
+
+export function paneTabTooltip(label: string, letter: string): string {
+  const chord = paneShortcutLabel(letter);
+  return `${label} (${chord} or Alt+${letter.toUpperCase()})`;
+}
+
+/**
+ * Ctrl/Cmd or Alt + letter → left pane tab.
+ * Does not steal Ctrl/Cmd+S save, Z undo, or Y redo. Unmodified letters are tool keys.
+ */
+export function paneTabFromKey(
+  key: string,
+  opts: { ctrlOrMeta?: boolean; alt?: boolean; shift?: boolean } = {},
+): PaneTabId | null {
+  if (opts.shift) return null;
+  if (!opts.ctrlOrMeta && !opts.alt) return null;
+  if (key.length !== 1) return null;
+  const letter = key.toLowerCase();
+  if (letter === "s" || letter === "z" || letter === "y") return null;
+  return PANE_BY_LETTER.get(letter) ?? null;
+}
+
