@@ -40,7 +40,7 @@ import { mergeCollinearBeams, snapBeamEndsInProject, snapBeamPullInProject, snap
 
 const TOOL_HINTS: Partial<Record<string, string>> = {
   ledger: "Ledger — click or drag along the house. Esc or Select to click objects.",
-  box: "Draw box — click-drag a rectangle, then move, resize, or rotate. Set type (stairs or board) on the right.",
+  box: "Draw box — click-drag a rectangle, then move, resize, or rotate. Set type (stairs or board) in Inspect.",
   outline: "Outline — click corners. Close / Enter when done. Esc or Select to click objects.",
   nodigZone: "No-dig zone — click corners, then Close. Esc or Select to click objects.",
   scale: "Scale — click two points, type a known length. Esc or Select to click objects.",

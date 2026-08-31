@@ -34,20 +34,24 @@ npm run build
 2. **Set scale** — tool *Set scale*, click two points on a known length, type feet-inches (`12-0`, `4` or `4'` = 4 feet / 48 in; `4"` = 4 inches).
 3. **Outline** — draw a polygon for the **new** deck (not rectangle-only, no holes). Double-click or Enter to close. After placing, the app returns to **Select**. Click anywhere inside an object’s bounds (yellow highlight). Overlapping objects open a picker (smallest first). Drag or **Delete** / Backspace. **Esc** returns to Select. Undo covers move and delete.
 4. **Ledger** — toolbar or left **Ledger** tool. Two clicks or click-drag along the house. This creates a ledger object (size, band/rim, flashing, fasteners), not only a house line. You do not need click-to-convert. Optional: convert a house-wall line. Fill needs outline **+ ledger**.
-4b. **Draw box** — toolbar or left **Draw box**. Click-drag a rectangle (or two clicks). Then move, resize (corners), and rotate (extra knob). Set **Type** on the right: stairs or board. Stair width can default from the box when scale is set; rise is typed. One stair object type. No Existing / Reused / click-to-place stairs / Existing stairs (photo) / Board in photo convert buttons.
+4b. **Draw box** (`T`) — toolbar or left **Stairs / box**. Click-drag a rectangle (or two clicks). Then move, resize (corners), and rotate (extra knob). Set **Type** in Inspect: stairs or board. Stair width can default from the box when scale is set; rise is typed. One stair object type. No Existing / Reused / click-to-place stairs / Existing stairs (photo) / Board in photo convert buttons.
 5. **Decking** — type product name, gap, and max joist spacing. Set joist and decking directions **before Fill**.
-6. **Heights** — type deck, grade, door sill, stair rise. Grade is one height; the site is treated as flat. No door object.
-7. **Fill** — places first posts and beams (you do not place them first), then joists, boards, blocking, rim, plus:
+6. **Inspect** — left column, under Tools: details of the current selection (type, XY from origin when set, size, ply, material, treatment, connecting objects). Multi-select shows a count and shared fields. Nothing selected: “select an object”.
+7. **Fill** (`F`) — places first posts and beams (you do not place them first), then joists, boards, blocking, rim, plus:
    - R321 guards on required open edges when typed deck − grade is **> 30 in** (36 in guard height; site flat)
    - R507.9.2 lateral-load devices (type the product; ledger bolts do not count)
    - R507.9.1.5 ledger flashing (type the product; do not invent one)
 8. **No-dig** — polygons and points with a typed buffer. Fill **shifts** posts along the beam; it does not omit them.
 9. **Undo** after edits. **Save** writes back to the same file after Open or a first Save (Chrome File System Access). **Save As** always picks a new name. **Ctrl/Cmd+S** / **Shift+S**. Filename and dirty `*` show in the toolbar. No account / cloud.
-10. **Export** Letter PDF (plan + cut list + elevation) or PNG plan / cut list / elevation.
+10. **Export** Letter PDF (plan + cut list with shopping section + elevation) or PNG plan / cut list / elevation.
+
+The **left column** holds Tools (object buttons with single-key hotkeys) on top, then Inspect, IRC flags, Cut list, Shopping list, elevation, and remaining settings. There is no right pane — the canvas uses that width. Lists scroll in the left column.
+
+Single-key hotkeys (ignored while typing in an input): **V** Select, **H** Pan, **S** Set scale, **O** Set origin, **M** Measure, **D** Deck outline, **L** Ledger, **W** House wall, **P** Post, **B** Beam, **J** Joist, **K** Breaker, **X** Blocking, **R** Rim, **G** Guard, **N** No-dig zone, **U** No-dig point, **T** Stairs / box, **F** Fill, **A** Ortho snap. Repeat press re-enters the tool. **Ctrl/Cmd+S** save, Delete, arrows (nudge), and Esc are not stolen.
 
 Snap increment starts **off**. You turn it on and set the increment.
 
-**Ortho snap** starts **on** (toolbar / status **Ortho** toggle, separate from increment snap). While on, placing or moving objects constrains to the ledger axis and its perpendicular (world X/Y if there is no ledger). Breakers snap perpendicular to the ledger; the ledger itself stays axis-aligned. Turn Ortho off to place or move a diagonal beam. Arrow keys nudge the selection 1 in (Shift+arrow uses the increment, default 6 in). After you pick from the overlap picker, the next drag on that stack moves the selected object instead of reopening the picker. User-drawn drop beams lock an end onto a post they hit (post footprint or 1.5 in); collinear coplanar beams merge into one member (posts stay).
+**Ortho snap** starts **on** (toolbar / status **Ortho** toggle or **A**, separate from increment snap). While on, placing or moving objects constrains to the ledger axis and its perpendicular (world X/Y if there is no ledger). Breakers snap perpendicular to the ledger; the ledger itself stays axis-aligned. Turn Ortho off to place or move a diagonal beam. Arrow keys nudge the selection 1 in (Shift+arrow uses the increment, default 6 in). After you pick from the overlap picker, the next drag on that stack moves the selected object instead of reopening the picker. User-drawn drop beams lock an end onto a post they hit (post footprint or 1.5 in); collinear coplanar beams merge into one member (posts stay).
 
 ## Locked tools (Anthony leftover-button pass)
 
@@ -55,7 +59,7 @@ Snap increment starts **off**. You turn it on and set the increment.
 
 **Keep as they are:** Pan; Select; Set scale (two clicks + typed length); Measure (two clicks, does not change scale); Set origin (click; status bar live XY); New deck outline (polygon); Ledger (click or drag line along house); House wall (line convert); Post (click XY); Beam drop (two-click line, diagonals allowed when placed); Joist (two-click line); Breaker board (seam, then doubled joists vs blocking); Blocking (two-click); Rim (two-click); Guard (place tool; Fill still adds required R321 guards); No-dig zone (polygon); No-dig point (click + typed buffer).
 
-Also: wheel zoom only over the work area; Save / Save As; bounds select + overlap picker. Cut-list row click selects those members. Typed waste % (empty = net only) on lumber/decking; hangers stay 1:1. No invented IRC spans.
+Also: wheel zoom only over the work area; Save / Save As; bounds select + overlap picker. **Cut list** is net per-member rows (click selects those objects). **Shopping list** is a consolidated buy list (type + size + whole-foot ceil length) with the typed waste % field (empty/0 = net; waste rounds piece counts up). Posts with no typed height stay `N — 6x6 posts` (no invented length). Hangers stay 1:1 grouped. No SKU catalog. No invented IRC spans. Heights and lateral-load settings are not edited in this UI (saved JSON fields are left as-is; Fill may still emit R507.9.2 devices).
 
 Fill clips posts, beams, joists, and boards to the **outline polygon** (every inside run; it does not fill the bounding box or bridge voids / water). First drop-beam line is **~10 ft from the ledger** (parallel to it when `beamFillAngleDeg` is null — perpendicular to joists). Fill then **iterates**: add or shift orthogonal drop beams (diagonal only when an orthogonal chord cannot cover a joist) until every joist bay and cantilever is inside Table R507.6 for the joist size it will use, and every post-to-post run is ≤8 ft. If 2x8 @ 16 in works at ~10 ft, joists are 2x8. Posts are **6x6** with ground-contact treatment (4x4 only if you type a short height from Table R507.4); every beam has posts at both ends and ≤8 ft o.c. Rim is **not** a load-bearing beam. User-placed diagonals are kept; Fill supplies the rest. Missing Table R507.5(1) **size** cells are flagged; members are still placed (2-ply 2x8 is a label only). Span/cantilever/post-spacing leftover flags are not a substitute for moving members. No-dig shifts intermediate posts along the beam **inside** the outline (end posts stay on the ends and flag if they hit no-dig). A house-band no-dig does not skip the 10 ft line. Trex / decking boards **split at every breaker seam**. Cut list reports every post XY, beam/joist lengths, and decking **square footage of the outlined polygon minus gaps** plus piece lengths.
 
@@ -82,7 +86,7 @@ Species **label** default is `Southern Yellow Pine No. 2 Prime` (Home Depot). **
 
 Stairs v1: if width/rise are set — 36 in clear (R318.7.1); max riser 7-3/4 in, 3/8 in variation (R318.7.5.1). No run, stringer count, or handrail requirement. 2024 stairs are **R318.7** (not R311.7); guards are **R321** (not R312).
 
-Cut list waste is **net only** until you type a waste percent (empty or 0 = net). That percent applies to dimension lumber and decking area/board lineal; hangers and counted hardware stay 1:1. Area/linear accessories use **your** coverage (sf/roll, count/box). No SKU catalog.
+Cut list lines stay **net** (no waste). Type a waste percent on the **shopping list** (empty or 0 = net). That percent rounds lumber/decking **counts** up; hangers and counted hardware stay 1:1. Shopping lengths are whole-foot ceil of net inches — not a SKU catalog. Area/linear accessories use **your** coverage (sf/roll, count/box).
 
 Post holes are **XY only**. No frost. No footing sizing.
 
