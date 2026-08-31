@@ -7,6 +7,7 @@ import { PlanView } from "./canvas/PlanView";
 import { inchesPerUnit } from "./model/project";
 import { formatInches } from "./units/length";
 import { selectionLabel } from "./edit/handles";
+import { offsetFromOriginIn } from "./edit/measure";
 function Shell() {
   const {
     project,
@@ -20,8 +21,21 @@ function Shell() {
     setTool,
     saveProject,
     saveProjectAs,
+    cursorWorld,
   } = useStore();
   const iPerU = inchesPerUnit(project);
+  const origin = project.origin;
+  const xyLabel =
+    !origin
+      ? "set origin"
+      : !iPerU
+        ? "set scale for XY"
+        : cursorWorld
+          ? (() => {
+              const off = offsetFromOriginIn(cursorWorld, origin, iPerU);
+              return `X ${formatInches(off.xIn)}  Y ${formatInches(off.yIn)}`;
+            })()
+          : "X —  Y —";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -65,6 +79,7 @@ function Shell() {
           <PlanView />
           <footer className="status">
             <span>Tool: {tool}</span>
+            <span className="status-xy">{xyLabel}</span>
             <span>
               Scale: {iPerU ? `${formatInches(iPerU)} / plan unit` : "not set — mark a known length"}
             </span>

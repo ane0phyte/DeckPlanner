@@ -34,6 +34,33 @@ export function objectDisplayName(o: PlannerObject): string {
   return objectTypeLabel(o.type);
 }
 
+/** Short type+size for the selection callout, e.g. "6x6 post". */
+export function selectionSizeLabel(o: PlannerObject): string {
+  const size =
+    "nominalSize" in o && o.nominalSize
+      ? o.nominalSize
+      : o.type === "board"
+        ? `${o.actualWidthIn}`
+        : "";
+  const kind = objectTypeLabel(o.type).toLowerCase();
+  return size ? `${size} ${kind}` : kind;
+}
+
+export function objectPickPoint(o: PlannerObject): Point {
+  if (o.type === "post" || o.type === "nodigPoint" || o.type === "lateralDevice") return o.origin;
+  if (o.type === "stairs" || o.type === "existingStairs") return o.origin;
+  if (o.type === "outline" || o.type === "nodigZone") {
+    const pts = o.points;
+    if (!pts.length) return { x: 0, y: 0 };
+    return {
+      x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
+      y: pts.reduce((s, p) => s + p.y, 0) / pts.length,
+    };
+  }
+  if ("a" in o && "b" in o) return { x: (o.a.x + o.b.x) / 2, y: (o.a.y + o.b.y) / 2 };
+  return { x: 0, y: 0 };
+}
+
 export function hitPad(viewScale: number): number {
   return Math.max(24 / viewScale, 12);
 }

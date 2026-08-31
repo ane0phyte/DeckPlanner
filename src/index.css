@@ -346,6 +346,35 @@ button.select-cta {
   background: #191612;
 }
 
+.status-xy {
+  font-variant-numeric: tabular-nums;
+  color: #ffb3e4;
+  min-width: 9rem;
+}
+
+.cut-row {
+  cursor: pointer;
+}
+
+.cut-row:hover {
+  background: #2a2418;
+}
+
+.cut-row.active {
+  background: #14363c;
+  outline: 1px solid #2ee6ff;
+}
+
+.cut-counts {
+  list-style: none;
+  padding: 0;
+}
+
+.cut-counts .cut-row {
+  padding: 0.25rem 0.35rem;
+  margin-bottom: 0.2rem;
+}
+
 .tabs {
   display: flex;
   gap: 0.25rem;

@@ -5,6 +5,8 @@ import {
   getCachedPhoto,
   preloadPhoto,
   worldFromScreen,
+  objectPoints,
+  viewToShowPoint,
   zoomView,
   type View,
 } from "./render";
@@ -34,6 +36,8 @@ const TOOL_HINTS: Partial<Record<string, string>> = {
   outline: "Outline — click corners. Close / Enter when done. Esc or Select to click objects.",
   nodigZone: "No-dig zone — click corners, then Close. Esc or Select to click objects.",
   scale: "Scale — click two points, type a known length. Esc or Select to click objects.",
+  measure: "Measure — click two points. Does not change scale. Esc or Select keeps the last reading.",
+  origin: "Set origin — click the zero point (ledger end, post, etc.). Status bar then shows live XY.",
   houseWall: "House wall — two clicks. Esc or Select to click objects.",
   post: "Post — click to place. Then Select so you can click it.",
   beam: "Beam — two clicks. Esc or Select to click objects.",
@@ -60,6 +64,12 @@ export function PlanView() {
     beginTransient,
     endTransient,
     setScale,
+    finishMeasure,
+    setOrigin,
+    setCursorWorld,
+    setMeasure,
+    measure,
+    frameNonce,
     setDraftPoint,
     deleteSelected,
     setTool,
@@ -109,6 +119,7 @@ export function PlanView() {
       showAllLabels: project.settings.layers.labels,
       exportMode: false,
       view,
+      measure,
     });
   }
 
@@ -134,7 +145,7 @@ export function PlanView() {
 
   function handlesAt(p: Point): Handle | null {
     const radius = Math.max(10 / view.scale, 8);
-    return hitHandle(collectHandles(project, draftPoints, selectedIds), p, radius);
+    return hitHandle(collectHandles(project, draftPoints, selectedIds, { measure }), p, radius);
   }
 
   function onPointerDown(e: React.PointerEvent) {
@@ -147,9 +158,9 @@ export function PlanView() {
     }
 
     const handle = handlesAt(p);
-    const drawing = tool !== "select" && tool !== "scale";
+    const drawing = tool !== "select" && tool !== "scale" && tool !== "measure" && tool !== "origin";
     const tightR = Math.max(6 / view.scale, 4);
-    const tightHandle = hitHandle(collectHandles(project, draftPoints, selectedIds), p, tightR);
+    const tightHandle = hitHandle(collectHandles(project, draftPoints, selectedIds, { measure }), p, tightR);
     if (drawing && handle && handle.kind === "draft") {
       setPicker(null);
       selectHandle(handle);
@@ -173,6 +184,24 @@ export function PlanView() {
         const inches = raw ? parseKnownLengthToInches(raw) : null;
         if (inches && inches > 0) setScale(draftPoints[0], snapped, inches);
       }
+      return;
+    }
+
+    if (tool === "measure") {
+      setPicker(null);
+      const snapped = applySnap(p);
+      if (draftPoints.length === 0) {
+        setMeasure(null);
+        addDraftPoint(snapped);
+      } else {
+        finishMeasure(draftPoints[0], snapped);
+      }
+      return;
+    }
+
+    if (tool === "origin") {
+      setPicker(null);
+      setOrigin(applySnap(p));
       return;
     }
 
@@ -224,6 +253,7 @@ export function PlanView() {
   }
 
   function onPointerMove(e: React.PointerEvent) {
+    setCursorWorld(localPoint(e));
     if (!drag.current) return;
     if (drag.current.mode === "pan") {
       const dx = e.clientX - drag.current.last.x;
@@ -250,6 +280,12 @@ export function PlanView() {
       const h = drag.current.handle;
       if (h.kind === "draft") {
         setDraftPoint(h.index, p);
+        selectHandle({ ...h, point: p });
+        return;
+      }
+      if (h.kind === "measure") {
+        const cur = measure ?? { a: p, b: p };
+        setMeasure(h.end === "a" ? { a: p, b: cur.b } : { a: cur.a, b: p });
         selectHandle({ ...h, point: p });
         return;
       }
@@ -312,6 +348,18 @@ export function PlanView() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (!frameNonce || !selectedIds.length) return;
+    const wrap = wrapRef.current;
+    const obj = project.objects.find((o) => o.id === selectedIds[0]);
+    if (!wrap || !obj) return;
+    const pts = objectPoints(obj);
+    const pick = pts.length
+      ? { x: pts.reduce((s, q) => s + q.x, 0) / pts.length, y: pts.reduce((s, q) => s + q.y, 0) / pts.length }
+      : { x: 0, y: 0 };
+    setView((v) => viewToShowPoint(v, pick, wrap.clientWidth, wrap.clientHeight));
+  }, [frameNonce, selectedIds, project.objects]);
+
   function pickObject(id: string) {
     select([id]);
     setPicker(null);
@@ -343,6 +391,7 @@ export function PlanView() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerLeave={() => setCursorWorld(null)}
         onDoubleClick={onDoubleClick}
       />
       {picker && (

@@ -8,6 +8,8 @@ export type Tool =
   | "select"
   | "pan"
   | "scale"
+  | "measure"
+  | "origin"
   | "outline"
   | "ledger"
   | "houseWall"
@@ -297,6 +299,8 @@ export interface ProjectSettings {
   decking: DeckingSpec;
   accessories: Accessories;
   layers: Record<LayerId, boolean>;
+  /** Typed waste percent for lumber + decking. null or 0 = net only. No invented default. */
+  wastePercent: number | null;
 }
 
 export interface Project {
@@ -308,6 +312,8 @@ export interface Project {
     heightPx: number;
   } | null;
   scale: ScaleMark | null;
+  /** Plan origin for live cursor XY. null until the user sets it. */
+  origin: Point | null;
   objects: PlannerObject[];
   flags: IrcFlag[];
 }

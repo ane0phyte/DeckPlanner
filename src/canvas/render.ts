@@ -6,10 +6,14 @@ import { bbox, polygonClosed } from "../geom/polygon";
 import {
   collectHandles,
   handleKey,
+  type MeasureOverlay,
   type Selection,
 } from "../edit/handles";
 import { getOrientedBox } from "../edit/typedBox";
 import { boxCorners } from "../geom/box";
+import { objectPickPoint, selectionSizeLabel } from "../edit/hit";
+
+export const SELECT_STROKE = "#2ee6ff";
 
 export interface View {
   panX: number;
@@ -48,6 +52,7 @@ export interface DrawOpts {
   showAllLabels: boolean;
   exportMode: boolean;
   view?: View;
+  measure?: MeasureOverlay | null;
 }
 
 export function fitView(project: Project, width: number, height: number): View {
@@ -65,6 +70,20 @@ export function fitView(project: Project, width: number, height: number): View {
     scale: s,
     panX: (width - w * s) / 2 - b.min.x * s,
     panY: (height - h * s) / 2 - b.min.y * s,
+  };
+}
+
+/** Pan so a world point is on-screen (keep current zoom). */
+export function viewToShowPoint(view: View, p: Point, width: number, height: number): View {
+  const s = screenFromWorld(p, view);
+  const margin = 56;
+  if (s.x >= margin && s.x <= width - margin && s.y >= margin && s.y <= height - margin) {
+    return view;
+  }
+  return {
+    ...view,
+    panX: width / 2 - p.x * view.scale,
+    panY: height / 2 - p.y * view.scale,
   };
 }
 
@@ -99,7 +118,14 @@ export function drawPlanToCanvas(
   for (const o of project.objects) {
     if (!layerOn(o, layers)) continue;
     const selected = opts.selectedIds.includes(o.id);
-    drawObject(ctx, o, selected, iPerU, opts.showAllLabels || opts.exportMode, opts.exportMode);
+    drawObject(ctx, o, selected, iPerU, opts.showAllLabels || opts.exportMode, opts.exportMode, view.scale);
+  }
+
+  if (!opts.exportMode && opts.selectedIds.length) {
+    for (const o of project.objects) {
+      if (!opts.selectedIds.includes(o.id) || !layerOn(o, layers)) continue;
+      drawSelectionChrome(ctx, o, iPerU, view.scale);
+    }
   }
 
   if (project.scale) {
@@ -117,8 +143,16 @@ export function drawPlanToCanvas(
     ctx.fillText(`scale ${formatInches(project.scale.knownLengthIn)}`, mid.x + 6, mid.y - 6);
   }
 
+  if (project.origin) {
+    drawOriginCross(ctx, project.origin, view.scale);
+  }
+
+  if (opts.measure) {
+    drawMeasure(ctx, opts.measure.a, opts.measure.b, iPerU, view.scale);
+  }
+
   if (!opts.exportMode) {
-    drawHandles(ctx, project, opts.draftPoints, opts.selectedIds, opts.selection ?? null, view.scale);
+    drawHandles(ctx, project, opts.draftPoints, opts.selectedIds, opts.selection ?? null, view.scale, opts.measure);
   }
 
   if (opts.draftPoints.length) {
@@ -216,11 +250,12 @@ function drawObject(
   iPerU: number | null,
   labels: boolean,
   exportMode: boolean,
+  viewScale = 1,
 ): void {
-  const stroke = selected ? "#ffe08a" : colorFor(o);
+  const stroke = selected && !exportMode ? SELECT_STROKE : colorFor(o);
   ctx.strokeStyle = stroke;
   ctx.fillStyle = stroke;
-  ctx.lineWidth = selected && !exportMode ? 3.5 : exportMode ? 2 : 1.5;
+  ctx.lineWidth = selected && !exportMode ? 5 / viewScale : exportMode ? 2 : 1.5;
   ctx.globalAlpha = o.type === "board" ? (selected ? 0.5 : 0.35) : 1;
 
   switch (o.type) {
@@ -300,8 +335,10 @@ function drawObject(
       if (o.type === "post") {
         const worldHalf = ((o.actualWidthIn || 5.5) / 2) / (iPerU || 1);
         const half = Math.max(28, worldHalf);
-        ctx.lineWidth = exportMode ? 3 : 2.5;
+        ctx.lineWidth = selected && !exportMode ? 6 / viewScale : exportMode ? 3 : 2.5;
+        ctx.fillStyle = selected && !exportMode ? "#1b4d55" : stroke;
         ctx.fillRect(p.x - half, p.y - half, half * 2, half * 2);
+        ctx.strokeStyle = selected && !exportMode ? SELECT_STROKE : stroke;
         ctx.strokeRect(p.x - half, p.y - half, half * 2, half * 2);
         ctx.font = exportMode ? "12px system-ui" : "14px system-ui";
         ctx.fillStyle = exportMode ? "#1c1916" : "#ffe08a";
@@ -399,6 +436,94 @@ export function objectPoints(o: PlannerObject): Point[] {
 
 export { hitTest } from "../edit/hit";
 
+function drawOriginCross(ctx: CanvasRenderingContext2D, p: Point, viewScale: number): void {
+  const arm = 14 / viewScale;
+  ctx.save();
+  ctx.strokeStyle = "#ff7ad9";
+  ctx.lineWidth = 2.4 / viewScale;
+  ctx.beginPath();
+  ctx.moveTo(p.x - arm, p.y);
+  ctx.lineTo(p.x + arm, p.y);
+  ctx.moveTo(p.x, p.y - arm);
+  ctx.lineTo(p.x, p.y + arm);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 4 / viewScale, 0, Math.PI * 2);
+  ctx.fillStyle = "#ff7ad9";
+  ctx.fill();
+  ctx.font = `${12 / viewScale}px system-ui`;
+  ctx.fillText("origin", p.x + 8 / viewScale, p.y - 8 / viewScale);
+  ctx.restore();
+}
+
+function drawMeasure(
+  ctx: CanvasRenderingContext2D,
+  a: Point,
+  b: Point,
+  iPerU: number | null,
+  viewScale: number,
+): void {
+  ctx.save();
+  ctx.strokeStyle = "#b8ff6a";
+  ctx.lineWidth = 2.2 / viewScale;
+  ctx.setLineDash([10 / viewScale, 5 / viewScale]);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  const tick = 8 / viewScale;
+  for (const p of [a, b]) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4 / viewScale, 0, Math.PI * 2);
+    ctx.fillStyle = "#b8ff6a";
+    ctx.fill();
+  }
+  const mid = midpoint(a, b);
+  const label = iPerU ? formatInches(dist(a, b) * iPerU) : "set scale";
+  ctx.fillStyle = "#b8ff6a";
+  ctx.font = `${13 / viewScale}px system-ui`;
+  ctx.fillText(label, mid.x + 8 / viewScale, mid.y - 8 / viewScale);
+  void tick;
+  ctx.restore();
+}
+
+function drawSelectionChrome(
+  ctx: CanvasRenderingContext2D,
+  o: PlannerObject,
+  iPerU: number | null,
+  viewScale: number,
+): void {
+  const pts = objectPoints(o);
+  if (!pts.length) return;
+  const pad = 10 / viewScale;
+  const minX = Math.min(...pts.map((p) => p.x)) - pad;
+  const maxX = Math.max(...pts.map((p) => p.x)) + pad;
+  const minY = Math.min(...pts.map((p) => p.y)) - pad;
+  const maxY = Math.max(...pts.map((p) => p.y)) + pad;
+  ctx.save();
+  ctx.strokeStyle = SELECT_STROKE;
+  ctx.lineWidth = 2.5 / viewScale;
+  ctx.setLineDash([]);
+  ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+  const corner = 7 / viewScale;
+  for (const [x, y] of [
+    [minX, minY],
+    [maxX, minY],
+    [minX, maxY],
+    [maxX, maxY],
+  ] as const) {
+    ctx.fillStyle = SELECT_STROKE;
+    ctx.fillRect(x - corner / 2, y - corner / 2, corner, corner);
+  }
+  const pick = objectPickPoint(o);
+  ctx.font = `${13 / viewScale}px system-ui`;
+  ctx.fillStyle = SELECT_STROKE;
+  ctx.fillText(selectionSizeLabel(o), pick.x + 8 / viewScale, pick.y - 10 / viewScale);
+  void iPerU;
+  ctx.restore();
+}
+
 function drawHandles(
   ctx: CanvasRenderingContext2D,
   project: Project,
@@ -406,16 +531,17 @@ function drawHandles(
   selectedIds: string[],
   selection: Selection | null,
   viewScale: number,
+  measure?: MeasureOverlay | null,
 ): void {
-  const handles = collectHandles(project, draftPoints, selectedIds);
+  const handles = collectHandles(project, draftPoints, selectedIds, { measure });
   const inv = 1 / viewScale;
   for (const h of handles) {
     const selected = selection ? handleKey(h) === handleKey(selection) : false;
     const r = (selected ? 7 : 5) * inv;
     ctx.beginPath();
     ctx.arc(h.point.x, h.point.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = selected ? "#ffe08a" : "#f3ead8";
-    ctx.strokeStyle = selected ? "#1c1916" : "#3a342c";
+    ctx.fillStyle = selected ? SELECT_STROKE : "#f3ead8";
+    ctx.strokeStyle = selected ? "#102226" : "#3a342c";
     ctx.lineWidth = 1.5 * inv;
     ctx.fill();
     ctx.stroke();
