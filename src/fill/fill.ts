@@ -59,6 +59,7 @@ import {
 } from "../geom/polygon";
 import { dressedSize, formatInches } from "../units/length";
 import { createBoxObject } from "../edit/typedBox";
+import { mergeCollinearBeams } from "../edit/beamSnap";
 
 export interface FillResult {
   project: Project;
@@ -245,6 +246,32 @@ export function fillProject(project: Project): FillResult {
 
   for (const beam of beams) {
     densifyPostsAlongBeam(beam, posts, created, noDig, poly, iPerU, species, intoDeck, ledgerProj);
+  }
+
+  {
+    const fillBeams = beams.filter((b) => b.source === "fill");
+    const fillPosts = posts.filter((p) => p.source === "fill");
+    const packed = mergeCollinearBeams({
+      ...next,
+      objects: [...next.objects, ...fillBeams, ...fillPosts],
+    });
+    const mergedBeams = packed.objects.filter((o): o is BeamObject => o.type === "beam");
+    const mergedPosts = packed.objects.filter((o): o is PostObject => o.type === "post");
+    beams.length = 0;
+    beams.push(...mergedBeams);
+    posts.length = 0;
+    posts.push(...mergedPosts);
+    next.objects = packed.objects.filter((o) => o.source !== "fill");
+    const keptCreated = created.filter((o) => o.type !== "beam" && o.type !== "post");
+    created.length = 0;
+    created.push(
+      ...keptCreated,
+      ...mergedBeams.filter((b) => b.source === "fill"),
+      ...mergedPosts.filter((p) => p.source === "fill"),
+    );
+    for (const beam of beams) {
+      densifyPostsAlongBeam(beam, posts, created, noDig, poly, iPerU, species, intoDeck, ledgerProj);
+    }
   }
 
   const sampleChords = sampleJoistChords(

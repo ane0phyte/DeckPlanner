@@ -13,6 +13,7 @@ export function defaultSettings(): ProjectSettings {
     defaultSpeciesLabel: DEFAULT_SPECIES_LABEL,
     snapOn: false,
     snapIncrementIn: 6,
+    orthoSnap: true,
     joistAngleDeg: 90,
     deckingAngleDeg: 0,
     beamFillAngleDeg: null,

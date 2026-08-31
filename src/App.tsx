@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { StoreProvider, useStore } from "./state/store";
 import { Toolbar } from "./ui/Toolbar";
 import { LeftPanel } from "./ui/LeftPanel";
@@ -8,6 +8,7 @@ import { inchesPerUnit } from "./model/project";
 import { formatInches } from "./units/length";
 import { selectionLabel } from "./edit/handles";
 import { offsetFromOriginIn } from "./edit/measure";
+import { nudgeDeltaWorld } from "./edit/ortho";
 function Shell() {
   const {
     project,
@@ -18,11 +19,17 @@ function Shell() {
     finishDraft,
     cancelDraft,
     selection,
+    selectedIds,
     setTool,
     saveProject,
     saveProjectAs,
     cursorWorld,
+    mutate,
+    beginTransient,
+    endTransient,
+    nudgeSelected,
   } = useStore();
+  const heldArrows = useRef(new Set<string>());
   const iPerU = inchesPerUnit(project);
   const origin = project.origin;
   const xyLabel =
@@ -38,6 +45,8 @@ function Shell() {
           : "X —  Y —";
 
   useEffect(() => {
+    const isArrow = (key: string) =>
+      key === "ArrowLeft" || key === "ArrowRight" || key === "ArrowUp" || key === "ArrowDown";
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
@@ -47,6 +56,16 @@ function Shell() {
         return;
       }
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT") return;
+      if (isArrow(e.key) && selectedIds.length) {
+        e.preventDefault();
+        const units = inchesPerUnit(project) ?? 1;
+        const delta = nudgeDeltaWorld(e.key, units, project.settings.snapIncrementIn, e.shiftKey);
+        if (!delta) return;
+        if (!heldArrows.current.size) beginTransient();
+        heldArrows.current.add(e.key);
+        nudgeSelected(delta.x, delta.y);
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -66,9 +85,32 @@ function Shell() {
         setTool("select");
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (!isArrow(e.key)) return;
+      heldArrows.current.delete(e.key);
+      if (!heldArrows.current.size) endTransient();
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [cancelDraft, deleteSelected, finishDraft, redo, saveProject, saveProjectAs, setTool, undo]);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+  }, [
+    beginTransient,
+    cancelDraft,
+    deleteSelected,
+    endTransient,
+    finishDraft,
+    nudgeSelected,
+    project,
+    redo,
+    saveProject,
+    saveProjectAs,
+    selectedIds,
+    setTool,
+    undo,
+  ]);
 
   return (
     <div className="app">
@@ -80,6 +122,19 @@ function Shell() {
           <footer className="status">
             <span>Tool: {tool}</span>
             <span className="status-xy">{xyLabel}</span>
+            <button
+              type="button"
+              className={project.settings.orthoSnap ? "active" : ""}
+              title="Orthogonal snap while placing or moving (not pan, measure, or set-scale)"
+              onClick={() =>
+                mutate((p) => ({
+                  ...p,
+                  settings: { ...p.settings, orthoSnap: !p.settings.orthoSnap },
+                }))
+              }
+            >
+              Ortho {project.settings.orthoSnap ? "on" : "off"}
+            </button>
             <span>
               Scale: {iPerU ? `${formatInches(iPerU)} / plan unit` : "not set — mark a known length"}
             </span>

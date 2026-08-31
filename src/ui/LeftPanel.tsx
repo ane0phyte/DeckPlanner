@@ -128,6 +128,11 @@ export function LeftPanel() {
       <section>
         <h2>Snap</h2>
         <Toggle
+          label="Ortho (on while placing/moving)"
+          checked={s.orthoSnap}
+          onChange={(v) => mutate((p) => ({ ...p, settings: { ...p.settings, orthoSnap: v } }))}
+        />
+        <Toggle
           label="Snap increment (starts off)"
           checked={s.snapOn}
           onChange={(v) => mutate((p) => ({ ...p, settings: { ...p.settings, snapOn: v } }))}
