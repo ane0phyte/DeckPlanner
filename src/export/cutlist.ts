@@ -4,9 +4,7 @@ import { dist } from "../geom/vec";
 import { formatInches } from "../units/length";
 import { qtyWithWaste } from "../edit/measure";
 import {
-  DECK_STOCK_FT,
-  DIM_STOCK_FT,
-  POST_STOCK_FT,
+  STOCK_FT,
   UNSET_POST_LEN_IN,
   formatWasteLine,
   packPieces,
@@ -298,12 +296,6 @@ function addPiece(buckets: Map<string, SizeBucket>, size: string, kind: SizeKind
   buckets.set(key, g);
 }
 
-function stockFor(kind: SizeKind): readonly number[] {
-  if (kind === "post") return POST_STOCK_FT;
-  if (kind === "decking") return DECK_STOCK_FT;
-  return DIM_STOCK_FT;
-}
-
 function bucketSortKey(b: SizeBucket): string {
   if (b.kind === "decking") return `2|${b.size}`;
   if (b.kind === "post") return `1|${b.size}`;
@@ -311,7 +303,7 @@ function bucketSortKey(b: SizeBucket): string {
 }
 
 const SHOP_NOTE =
-  "Store stick lengths packed from net cuts. Waste is leftover after packing (1/8\" kerf), not a typed percent. Hangers 1:1. No SKU catalog.";
+  "Store sticks are 6', 8', 12', and 16'. Packed from net cuts. Waste is leftover after packing (1/8\" kerf), not a typed percent. Hangers 1:1. No SKU catalog.";
 
 /** Buy list: pack net cuts onto HD/Lowe’s stock. Ignore settings.wastePercent. */
 export function buildShoppingList(project: Project): ShoppingList {
@@ -330,8 +322,11 @@ export function buildShoppingList(project: Project): ShoppingList {
   const posts = findByType(project, "post");
   for (const p of posts) {
     const size = p.nominalSize || "6x6";
-    const len = postH != null && postH > 0 ? postH : UNSET_POST_LEN_IN;
-    addPiece(buckets, size, "post", { lenIn: len, objectId: p.id });
+    if (postH != null && postH > 0) {
+      addPiece(buckets, size, "post", { lenIn: postH, objectId: p.id });
+    } else {
+      addPiece(buckets, size, "post", { lenIn: UNSET_POST_LEN_IN, objectId: p.id, exclusive: true });
+    }
   }
 
   const joists = findByType(project, "joist");
@@ -369,7 +364,7 @@ export function buildShoppingList(project: Project): ShoppingList {
   const waste: ShopWaste[] = [];
   const ordered = [...buckets.values()].sort((a, b) => bucketSortKey(a).localeCompare(bucketSortKey(b)));
   for (const bucket of ordered) {
-    const packed = packPieces(bucket.pieces, stockFor(bucket.kind));
+    const packed = packPieces(bucket.pieces, STOCK_FT);
     const kind: ShopLine["kind"] = bucket.kind === "decking" ? "decking" : "lumber";
     for (const buy of packed.buys) {
       if (buy.qty <= 0) continue;

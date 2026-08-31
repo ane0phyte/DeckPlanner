@@ -64,8 +64,10 @@ describe("Shopping list section", () => {
       root!.render(createElement(ShoppingListSection));
     });
     expect(host.querySelector("input")).toBeNull();
-    expect(host.textContent).toMatch(/1 — 2x8 × 10'/);
+    expect(host.textContent).toMatch(/1 — 2x8 × 12'/);
+    expect(host.textContent).not.toMatch(/× 10'/);
     expect(host.textContent).not.toMatch(/× 16'/);
+    expect(host.textContent).not.toMatch(/× 20'/);
     expect(host.textContent).toMatch(/1 — decking × 12'/);
     expect(host.textContent).toMatch(/2x8 waste/);
     expect(host.textContent).toMatch(/decking waste/);
