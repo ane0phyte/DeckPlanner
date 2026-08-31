@@ -120,7 +120,7 @@ button.select-cta {
 .main {
   flex: 1;
   display: grid;
-  grid-template-columns: 300px 1fr;
+  grid-template-columns: 360px 1fr;
   min-height: 0;
 }
 
@@ -135,29 +135,35 @@ button.select-cta {
   border-right: 1px solid var(--line);
 }
 
-.stacked-left {
+.left-pane {
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  padding: 0;
+  padding: 0.45rem 0.55rem 0.7rem;
+}
+
+.left-tabs {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  margin-bottom: 0.4rem;
+}
+
+.left-tabs button {
+  flex: 1 1 30%;
+  min-width: 5.4rem;
+  font-size: 0.68rem;
+  padding: 0.22rem 0.32rem;
+}
+
+.left-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
 }
 
 .left-tools {
-  flex-shrink: 0;
-  padding: 0.55rem 0.7rem 0.45rem;
-  border-bottom: 1px solid var(--line);
-}
-
-.left-tools h2 {
-  margin-top: 0.15rem;
-}
-
-.left-rest {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 0.35rem 0.7rem 1.4rem;
+  padding: 0;
 }
 
 .place-label {

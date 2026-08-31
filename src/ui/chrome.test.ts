@@ -9,6 +9,14 @@ function headingTexts(el: HTMLElement): string[] {
   return [...el.querySelectorAll("h2")].map((n) => (n.textContent ?? "").trim());
 }
 
+function clickTab(host: HTMLElement, id: string) {
+  const btn = host.querySelector(`[data-tab="${id}"]`) as HTMLButtonElement | null;
+  expect(btn).toBeTruthy();
+  act(() => {
+    btn!.click();
+  });
+}
+
 describe("left-column chrome", () => {
   let root: Root | null = null;
   let host: HTMLDivElement | null = null;
@@ -24,27 +32,28 @@ describe("left-column chrome", () => {
     host = null;
   });
 
-  it("expands the canvas, binds B to beam, and has no Heights/Lateral headings", async () => {
+  async function renderApp() {
     host = document.createElement("div");
     document.body.appendChild(host);
     root = createRoot(host);
     await act(async () => {
       root!.render(createElement(App));
     });
+    return host;
+  }
 
-    expect(host.querySelector(".right")).toBeNull();
-    expect(host.querySelector(".left")).not.toBeNull();
-    expect(host.querySelector(".center")).not.toBeNull();
-    expect(host.querySelector(".main")?.children.length).toBe(2);
-    expect(headingTexts(host).some((h) => /^Heights/i.test(h))).toBe(false);
-    expect(headingTexts(host).some((h) => /^Lateral/i.test(h))).toBe(false);
-    expect(host.textContent).not.toMatch(/Lateral scheme/);
-    expect(host.textContent).toMatch(/select an object/i);
-    expect(host.textContent).toMatch(/Cut list/);
-    expect(host.textContent).toMatch(/Shopping list/);
-    expect(host.textContent).toMatch(/Inspect/);
+  it("expands the canvas, binds B to beam, and has no Heights/Lateral headings", async () => {
+    await renderApp();
 
-    const beam = host.querySelector('[data-hotkey="B"]');
+    expect(host!.querySelector(".right")).toBeNull();
+    expect(host!.querySelector(".left")).not.toBeNull();
+    expect(host!.querySelector(".center")).not.toBeNull();
+    expect(host!.querySelector(".main")?.children.length).toBe(2);
+    expect(headingTexts(host!).some((h) => /^Heights/i.test(h))).toBe(false);
+    expect(headingTexts(host!).some((h) => /^Lateral/i.test(h))).toBe(false);
+    expect(host!.textContent).not.toMatch(/Lateral scheme/);
+
+    const beam = host!.querySelector('[data-hotkey="B"]');
     expect(beam).toBeTruthy();
     expect(beam!.querySelector("u")?.textContent?.toLowerCase()).toBe("b");
     expect(beam!.getAttribute("title")).toMatch(/Beam \(B\)/);
@@ -52,6 +61,47 @@ describe("left-column chrome", () => {
     await act(async () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "b", bubbles: true }));
     });
-    expect(host.textContent).toMatch(/Tool: beam/);
+    expect(host!.textContent).toMatch(/Tool: beam/);
+  });
+
+  it("uses a section switcher: Cut list hides the tool grid; Tools hides list bodies", async () => {
+    await renderApp();
+    const canvas = host!.querySelector(".plan-canvas");
+    expect(canvas).toBeTruthy();
+    expect(host!.querySelector(".tool-grid")).toBeTruthy();
+    expect(headingTexts(host!)).toContain("Tools");
+    expect(headingTexts(host!)).not.toContain("Inspect");
+    expect(headingTexts(host!)).not.toContain("Cut list");
+
+    clickTab(host!, "cut");
+    expect(host!.querySelector("[data-left-tab]")?.getAttribute("data-left-tab")).toBe("cut");
+    expect(host!.querySelector(".tool-grid")).toBeNull();
+    expect(headingTexts(host!)).toContain("Cut list");
+    expect(headingTexts(host!)).not.toContain("Tools");
+    expect(host!.querySelector(".plan-canvas")).toBe(canvas);
+
+    clickTab(host!, "inspect");
+    expect(host!.querySelector(".tool-grid")).toBeNull();
+    expect(host!.textContent).toMatch(/select an object/i);
+    expect(host!.querySelector(".plan-canvas")).toBe(canvas);
+
+    clickTab(host!, "tools");
+    expect(host!.querySelector(".tool-grid")).toBeTruthy();
+    expect(headingTexts(host!)).not.toContain("Cut list");
+    expect(host!.querySelector(".plan-canvas")).toBe(canvas);
+  });
+
+  it("keeps hotkeys global without switching the left section", async () => {
+    await renderApp();
+    clickTab(host!, "shop");
+    expect(host!.querySelector(".tool-grid")).toBeNull();
+    expect(headingTexts(host!)).toContain("Shopping list");
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "b", bubbles: true }));
+    });
+    expect(host!.textContent).toMatch(/Tool: beam/);
+    expect(host!.querySelector(".tool-grid")).toBeNull();
+    expect(headingTexts(host!)).toContain("Shopping list");
   });
 });
