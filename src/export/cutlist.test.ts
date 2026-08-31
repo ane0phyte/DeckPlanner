@@ -98,7 +98,7 @@ describe("cut list", () => {
     expect(postLines[0].objectIds).toHaveLength(2);
   });
 
-  it("ignores typed waste percent and packs a set post height onto 8/10/12 stock", () => {
+  it("ignores typed waste percent; unset posts stay 8'; two 6' posts pack onto one 12'", () => {
     const p = emptyProject();
     p.scale = { a: { x: 0, y: 0 }, b: { x: 12, y: 0 }, knownLengthIn: 12 };
     const a = createUserObject("post", [{ x: 0, y: 0 }])! as PostObject;
@@ -111,15 +111,16 @@ describe("cut list", () => {
     const postLines = shop.lines.filter((l) => /6x6/.test(l.text));
     expect(postLines).toHaveLength(1);
     expect(postLines[0].text).toMatch(/^2 — 6x6 × 8'$/);
+    expect(shop.lines.some((l) => /× 10'/.test(l.text) || /× 20'/.test(l.text))).toBe(false);
     p.settings.heights.deckIn = 72;
     p.settings.heights.gradeIn = 0;
     p.settings.wastePercent = null;
     const withH = buildShoppingList(p).lines.filter((l) => /6x6/.test(l.text));
     expect(withH).toHaveLength(1);
-    expect(withH[0].text).toMatch(/^2 — 6x6 × 8'$/);
+    expect(withH[0].text).toMatch(/^1 — 6x6 × 12'$/);
   });
 
-  it("buys a 10' 2x8 for a 9'-6\" joist, not a 16'", () => {
+  it("buys a 12' 2x8 for a 9'-6\" joist, not a 16'", () => {
     const p = emptyProject();
     p.scale = { a: { x: 0, y: 0 }, b: { x: 12, y: 0 }, knownLengthIn: 12 };
     p.objects = [
@@ -130,8 +131,10 @@ describe("cut list", () => {
     ];
     const shop = buildShoppingList(p);
     const lumber = shop.lines.filter((l) => l.kind === "lumber");
-    expect(lumber.some((l) => /^1 — 2x8 × 10'$/.test(l.text))).toBe(true);
-    expect(lumber.some((l) => /× 16'/.test(l.text))).toBe(false);
+    expect(lumber.some((l) => /^1 — 2x8 × 12'$/.test(l.text))).toBe(true);
+    expect(lumber.some((l) => /× 10'/.test(l.text) || /× 16'/.test(l.text) || /× 20'/.test(l.text))).toBe(
+      false,
+    );
     expect(shop.wasteSummary).toMatch(/2x8 waste/);
     expect(shop.waste[0]?.leftoverIn).toBeGreaterThan(0);
   });

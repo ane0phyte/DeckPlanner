@@ -3,14 +3,12 @@ import { formatInches } from "../units/length";
 /** Saw kerf between adjacent cuts on the same stick. Counted in waste, not as a packing blocker. */
 export const KERF_IN = 0.125;
 
-/** Home Depot / Lowe’s common 2x lengths. */
-export const DIM_STOCK_FT = [8, 10, 12, 16, 20] as const;
+/** Common stick lengths only. Do not buy 10' or 20'. */
+export const STOCK_FT = [6, 8, 12, 16] as const;
 
-/** Common 4x4 / 6x6 post lengths. Unset height buys the shortest (8'). */
-export const POST_STOCK_FT = [8, 10, 12] as const;
-
-/** Decking: prefer 12' and 16'; 20' only when a piece needs it. */
-export const DECK_STOCK_FT = [12, 16, 20] as const;
+export const DIM_STOCK_FT = STOCK_FT;
+export const POST_STOCK_FT = STOCK_FT;
+export const DECK_STOCK_FT = STOCK_FT;
 
 export const UNSET_POST_LEN_IN = 8 * 12;
 
@@ -19,6 +17,8 @@ export interface PackPiece {
   objectId: string;
   /** True when this remnant came from a run longer than max stock. */
   split?: boolean;
+  /** Unset-height posts: one 8' stick each, not packed onto a longer stick. */
+  exclusive?: boolean;
 }
 
 export interface PackedStick {
@@ -43,52 +43,118 @@ export interface PackResult {
   percent: number;
 }
 
-export function splitOversize(
-  lenIn: number,
-  maxIn: number,
-): { lenIn: number; split: boolean }[] {
-  if (lenIn <= 0) return [];
-  if (lenIn <= maxIn + 1e-9) return [{ lenIn, split: false }];
-  const parts: { lenIn: number; split: boolean }[] = [];
-  let left = lenIn;
-  while (left > maxIn + 1e-9) {
-    parts.push({ lenIn: maxIn, split: true });
-    left -= maxIn;
-  }
-  if (left > 1e-9) parts.push({ lenIn: left, split: true });
-  return parts;
+function shortestStockFt(usedIn: number, stocks: number[]): number {
+  const fit = stocks.find((ft) => ft * 12 + 1e-9 >= usedIn);
+  return fit ?? stocks[stocks.length - 1] ?? 0;
 }
 
-function remainingIn(stick: PackedStick): number {
-  return stick.stockFt * 12 - stick.pieces.reduce((n, p) => n + p.lenIn, 0);
+/** Fewest sticks from `stockFt` whose lengths cover `lenIn`, then least leftover. */
+export function coverLength(lenIn: number, stockFt: readonly number[]): number[] {
+  const stocks = [...stockFt].filter((ft) => ft > 0).sort((a, b) => a - b);
+  const maxFt = stocks[stocks.length - 1] ?? 0;
+  const maxIn = maxFt * 12;
+  if (lenIn <= 1e-9 || maxIn <= 0) return [];
+  const kMin = Math.max(1, Math.ceil(lenIn / maxIn - 1e-12));
+  for (let k = kMin; k <= kMin + stocks.length + 2; k++) {
+    const combo = bestKStocks(lenIn, stocks, k);
+    if (combo) return combo;
+  }
+  return Array.from({ length: kMin }, () => maxFt);
+}
+
+function bestKStocks(lenIn: number, stocks: number[], k: number): number[] | null {
+  let best: number[] | null = null;
+  let bestSum = Infinity;
+  const rec = (start: number, chosen: number[], sumFt: number) => {
+    if (chosen.length === k) {
+      const sumIn = sumFt * 12;
+      if (sumIn + 1e-9 >= lenIn && sumIn < bestSum - 1e-9) {
+        bestSum = sumIn;
+        best = [...chosen];
+      }
+      return;
+    }
+    for (let i = start; i < stocks.length; i++) {
+      chosen.push(stocks[i]);
+      rec(i, chosen, sumFt + stocks[i]);
+      chosen.pop();
+      if (bestSum <= lenIn + 1e-9) return;
+    }
+  };
+  rec(0, [], 0);
+  return best;
 }
 
 /**
- * First-fit decreasing. New sticks use the shortest stock that can hold the piece.
- * Fit is sum of piece lengths ≤ stock (kerf is waste, so 6'+6' packs onto one 12').
+ * Split a run longer than max stock into the fewest 16'/12'/8'/6' end-to-end pieces
+ * (then least leftover). Pieces that already fit return unchanged.
+ */
+export function splitOversize(
+  lenIn: number,
+  stockFt: readonly number[],
+): { lenIn: number; split: boolean }[] {
+  if (lenIn <= 1e-9) return [];
+  const stocks = [...stockFt].filter((ft) => ft > 0).sort((a, b) => a - b);
+  const maxIn = (stocks[stocks.length - 1] ?? 0) * 12;
+  if (lenIn <= maxIn + 1e-9) return [{ lenIn, split: false }];
+  const cover = coverLength(lenIn, stocks).sort((a, b) => b - a);
+  const parts: { lenIn: number; split: boolean }[] = [];
+  let left = lenIn;
+  for (const ft of cover) {
+    const take = Math.min(ft * 12, left);
+    if (take > 1e-9) parts.push({ lenIn: take, split: true });
+    left -= take;
+  }
+  return parts;
+}
+
+/**
+ * Pack into the fewest sticks, then least leftover.
+ * 1. First-fit decreasing onto max stock (16').
+ * 2. Shrink each stick to the shortest of {6,8,12,16} that still holds its cuts.
+ * Fit is sum of piece lengths ≤ stock (kerf is waste).
  */
 export function packPieces(pieces: PackPiece[], stockFt: readonly number[]): PackResult {
-  const stocks = [...stockFt].sort((a, b) => a - b);
-  const maxIn = (stocks[stocks.length - 1] ?? 0) * 12;
+  const stocks = [...stockFt].filter((ft) => ft > 0).sort((a, b) => a - b);
+  const maxFt = stocks[stocks.length - 1] ?? 0;
   const expanded: PackPiece[] = [];
   for (const p of pieces) {
     if (p.lenIn <= 1e-9) continue;
-    for (const part of splitOversize(p.lenIn, maxIn)) {
-      expanded.push({ lenIn: part.lenIn, objectId: p.objectId, split: part.split || p.split });
+    if (p.exclusive) {
+      expanded.push({ ...p, split: Boolean(p.split) });
+      continue;
+    }
+    for (const part of splitOversize(p.lenIn, stocks)) {
+      expanded.push({
+        lenIn: part.lenIn,
+        objectId: p.objectId,
+        split: part.split || p.split,
+      });
     }
   }
-  expanded.sort((a, b) => b.lenIn - a.lenIn || a.objectId.localeCompare(b.objectId));
+  const shared = expanded.filter((p) => !p.exclusive);
+  shared.sort((a, b) => b.lenIn - a.lenIn || a.objectId.localeCompare(b.objectId));
+  const solos = expanded.filter((p) => p.exclusive);
 
   const sticks: PackedStick[] = [];
-  for (const piece of expanded) {
-    const host = sticks.find((s) => remainingIn(s) + 1e-9 >= piece.lenIn);
+  const remainingOnMax = (s: PackedStick) => maxFt * 12 - s.pieces.reduce((n, p) => n + p.lenIn, 0);
+  for (const piece of shared) {
+    const host = sticks.find((s) => remainingOnMax(s) + 1e-9 >= piece.lenIn);
     if (host) {
       host.pieces.push(piece);
       continue;
     }
-    const stock = stocks.find((ft) => ft * 12 + 1e-9 >= piece.lenIn) ?? stocks[stocks.length - 1];
-    if (stock == null) continue;
-    sticks.push({ stockFt: stock, pieces: [piece] });
+    sticks.push({ stockFt: maxFt, pieces: [piece] });
+  }
+  for (const s of sticks) {
+    const used = s.pieces.reduce((n, p) => n + p.lenIn, 0);
+    s.stockFt = shortestStockFt(used, stocks);
+  }
+  for (const piece of solos) {
+    sticks.push({
+      stockFt: shortestStockFt(piece.lenIn, stocks),
+      pieces: [piece],
+    });
   }
 
   const byFt = new Map<number, { qty: number; objectIds: string[]; exceededMax: boolean }>();
